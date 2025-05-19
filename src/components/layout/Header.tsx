@@ -1,6 +1,6 @@
 
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Menu, X, Sun, Moon } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/hooks/use-theme";
@@ -10,9 +10,12 @@ import Logo from "./Logo";
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { theme, setTheme } = useTheme();
+  const location = useLocation();
 
   const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
   const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
+  
+  const isActive = (path: string) => location.pathname === path;
 
   return (
     <header className="sticky top-0 z-50 w-full bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800">
@@ -31,13 +34,21 @@ const Header = () => {
             <nav className="flex items-center space-x-6">
               <Link 
                 to="/simulation" 
-                className="text-gray-700 dark:text-gray-300 hover:text-benin-green dark:hover:text-benin-green transition-colors"
+                className={`transition-colors ${
+                  isActive("/simulation")
+                    ? "text-benin-green font-medium"
+                    : "text-gray-700 dark:text-gray-300 hover:text-benin-green dark:hover:text-benin-green"
+                }`}
               >
                 Simulation
               </Link>
               <Link 
                 to="/resources" 
-                className="text-gray-700 dark:text-gray-300 hover:text-benin-green dark:hover:text-benin-green transition-colors"
+                className={`transition-colors ${
+                  isActive("/resources")
+                    ? "text-benin-green font-medium"
+                    : "text-gray-700 dark:text-gray-300 hover:text-benin-green dark:hover:text-benin-green"
+                }`}
               >
                 Ressources
               </Link>
@@ -97,14 +108,22 @@ const Header = () => {
             <nav className="flex flex-col space-y-4">
               <Link 
                 to="/simulation" 
-                className="text-gray-700 dark:text-gray-300 hover:text-benin-green dark:hover:text-benin-green py-2"
+                className={`py-2 ${
+                  isActive("/simulation")
+                    ? "text-benin-green font-medium"
+                    : "text-gray-700 dark:text-gray-300 hover:text-benin-green dark:hover:text-benin-green"
+                }`}
                 onClick={() => setIsMenuOpen(false)}
               >
                 Simulation
               </Link>
               <Link 
                 to="/resources" 
-                className="text-gray-700 dark:text-gray-300 hover:text-benin-green dark:hover:text-benin-green py-2"
+                className={`py-2 ${
+                  isActive("/resources")
+                    ? "text-benin-green font-medium"
+                    : "text-gray-700 dark:text-gray-300 hover:text-benin-green dark:hover:text-benin-green"
+                }`}
                 onClick={() => setIsMenuOpen(false)}
               >
                 Ressources
