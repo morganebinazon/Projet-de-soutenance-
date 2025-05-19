@@ -1,0 +1,6 @@
+
+<svg width="300" height="400" viewBox="0 0 300 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M150 50C150 50 120 70 110 100C100 130 90 200 100 250C110 300 150 350 150 350C150 350 160 300 170 250C180 200 180 130 170 100C160 70 150 50 150 50Z" fill="#FFEBEE" stroke="#C62828" stroke-width="2"/>
+  <circle cx="150" cy="200" r="8" fill="#C62828"/>
+  <text x="150" y="230" text-anchor="middle" fill="#C62828" font-family="sans-serif" font-size="12">Lomé</text>
+</svg>

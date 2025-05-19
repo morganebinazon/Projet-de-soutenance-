@@ -12,6 +12,7 @@ import Simulation from "./pages/Simulation";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Resources from "./pages/Resources";
+import CountrySelection from "./pages/CountrySelection";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -30,6 +31,7 @@ const App = () => (
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route path="/resources" element={<Resources />} />
+              <Route path="/country-selection" element={<CountrySelection />} />
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>

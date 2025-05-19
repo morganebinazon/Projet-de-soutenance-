@@ -1,0 +1,6 @@
+
+<svg width="300" height="400" viewBox="0 0 300 400" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <path d="M150 50C150 50 120 80 100 120C80 160 80 200 100 250C120 300 150 350 150 350C150 350 180 300 200 250C220 200 220 160 200 120C180 80 150 50 150 50Z" fill="#E8F5E9" stroke="#2E7D32" stroke-width="2"/>
+  <circle cx="150" cy="200" r="8" fill="#2E7D32"/>
+  <text x="150" y="230" text-anchor="middle" fill="#2E7D32" font-family="sans-serif" font-size="12">Cotonou</text>
+</svg>

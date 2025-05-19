@@ -1,15 +1,17 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 
+type CountryId = "benin" | "togo";
+
 interface CountryProviderProps {
   children: React.ReactNode;
-  defaultCountry?: string;
+  defaultCountry?: CountryId;
   storageKey?: string;
 }
 
 interface CountryContextType {
-  country: string;
-  setCountry: (country: string) => void;
+  country: CountryId;
+  setCountry: (country: CountryId) => void;
 }
 
 const CountryContext = createContext<CountryContextType | undefined>(undefined);
@@ -19,11 +21,11 @@ export function CountryProvider({
   defaultCountry = "benin",
   storageKey = "paye-afrique-country",
 }: CountryProviderProps) {
-  const [country, setCountryState] = useState<string>(
-    () => localStorage.getItem(storageKey) || defaultCountry
+  const [country, setCountryState] = useState<CountryId>(
+    () => (localStorage.getItem(storageKey) as CountryId) || defaultCountry
   );
 
-  const setCountry = (newCountry: string) => {
+  const setCountry = (newCountry: CountryId) => {
     localStorage.setItem(storageKey, newCountry);
     setCountryState(newCountry);
   };
