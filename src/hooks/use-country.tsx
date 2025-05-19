@@ -1,7 +1,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from "react";
 
-type CountryId = "benin" | "togo";
+export type CountryId = "benin" | "togo";
 
 interface CountryProviderProps {
   children: React.ReactNode;
