@@ -25,7 +25,7 @@ export function CountryProvider({
     () => {
       const savedCountry = localStorage.getItem(storageKey);
       return (savedCountry === "benin" || savedCountry === "togo") 
-        ? savedCountry 
+        ? savedCountry as CountryId 
         : defaultCountry;
     }
   );
