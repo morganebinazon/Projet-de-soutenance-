@@ -1,73 +1,120 @@
-# Welcome to your Lovable project
+# PayeAfrique - Plateforme de Simulation et Gestion de Paie
 
-## Project info
+PayeAfrique est une plateforme moderne et intuitive pour calculer et gérer les salaires conformément aux législations fiscales et sociales en Afrique de l'Ouest, spécifiquement au Bénin et au Togo.
 
-**URL**: https://lovable.dev/projects/f5a73b2f-ccd9-46a4-895c-485e962ed31d
+![PayeAfrique Screenshot](./public/images/dashboard-preview.png)
 
-## How can I edit this code?
+## 🌟 Fonctionnalités
 
-There are several ways of editing your application.
+- **Simulation de salaire** : Calcul précis du net au brut ou du brut au net
+- **Gestion de la paie** : Dashboard employeur pour gérer la masse salariale
+- **Espace employé** : Interface personnalisée pour les salariés
+- **Multi-pays** : Support des législations béninoise et togolaise
+- **Documentation complète** : Ressources et guides explicatifs sur la fiscalité
+- **Design responsive** : Utilisation optimale sur ordinateur, tablette et mobile
 
-**Use Lovable**
+## 🚀 Démarrage rapide
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/f5a73b2f-ccd9-46a4-895c-485e962ed31d) and start prompting.
+### Prérequis
 
-Changes made via Lovable will be committed automatically to this repo.
+- Node.js 16.x ou supérieur
+- npm 8.x ou supérieur
 
-**Use your preferred IDE**
+### Installation
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+1. Clonez le dépôt
+```bash
+git clone https://github.com/Naesmal/paye-afrique.git
+cd paye-afrique
+```
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+2. Installez les dépendances
+```bash
+npm install
+```
 
-Follow these steps:
+3. Créez un fichier `.env` à la racine du projet (voir `.env.example` pour les variables requises)
+```bash
+cp .env.example .env
+```
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
-npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
+4. Lancez l'application en mode développement
+```bash
 npm run dev
 ```
 
-**Edit a file directly in GitHub**
+L'application sera accessible à l'adresse [http://localhost:5173](http://localhost:5173)
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+### Scripts disponibles
 
-**Use GitHub Codespaces**
+- `npm run dev` - Lance le serveur de développement
+- `npm run build` - Compile l'application pour la production
+- `npm run preview` - Prévisualise la version de production localement
+- `npm run lint` - Vérifie le code avec ESLint
+- `npm run test` - Exécute les tests
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+## 🧰 Technologies utilisées
 
-## What technologies are used for this project?
+- **[Vite](https://vitejs.dev/)** - Build tool ultra-rapide
+- **[React](https://reactjs.org/)** - Bibliothèque UI
+- **[TypeScript](https://www.typescriptlang.org/)** - Typage statique
+- **[Tailwind CSS](https://tailwindcss.com/)** - Framework CSS utilitaire
+- **[shadcn/ui](https://ui.shadcn.com/)** - Composants UI réutilisables
+- **[Lucide React](https://lucide.dev/)** - Collection d'icônes
+- **[React Router](https://reactrouter.com/)** - Navigation
+- **[Recharts](https://recharts.org/)** - Bibliothèque de graphiques
 
-This project is built with:
+## 📚 Documentation
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+La documentation détaillée est disponible dans le répertoire `docs/` à la racine du projet. Elle inclut :
 
-## How can I deploy this project?
+- Guide d'utilisation pour les employeurs
+- Guide d'utilisation pour les employés
+- Documentation technique
+- Guides de développement
+- Explications sur les calculs fiscaux et sociaux
 
-Simply open [Lovable](https://lovable.dev/projects/f5a73b2f-ccd9-46a4-895c-485e962ed31d) and click on Share -> Publish.
+## 🚢 Déploiement
 
-## Can I connect a custom domain to my Lovable project?
+### Construction pour la production
 
-Yes, you can!
+```bash
+npm run build
+```
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+Les fichiers de production seront générés dans le répertoire `dist/`.
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/tips-tricks/custom-domain#step-by-step-guide)
+### Hébergement
+
+L'application peut être hébergée sur n'importe quelle plateforme supportant les applications statiques modernes :
+
+- Vercel
+- Netlify
+- GitHub Pages
+- Firebase Hosting
+- AWS S3 + CloudFront
+- etc.
+
+## 🤝 Contribution
+
+Les contributions sont les bienvenues ! Pour contribuer :
+
+1. Forkez le projet
+2. Créez votre branche de fonctionnalité (`git checkout -b feature/amazing-feature`)
+3. Validez vos modifications (`git commit -m 'Add some amazing feature'`)
+4. Poussez vers la branche (`git push origin feature/amazing-feature`)
+5. Ouvrez une Pull Request
+
+Veuillez consulter le fichier CONTRIBUTING.md pour les directives détaillées.
+
+## 📝 Licence
+
+Ce projet est sous licence [MIT](LICENSE).
+
+## 📞 Contact
+
+Pour toute question ou suggestion, veuillez nous contacter à [contact@payeafrique.com](mailto:contact@payeafrique.com)
+
+---
+
+Développé avec ❤️ pour l'Afrique de l'Ouest
