@@ -1,5 +1,5 @@
 
-@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Open+Sans:wght@300;400;500;600;700&family=Poppins:wght@400;500;600;700&family=Montserrat+Alternates:wght@400;500;600;700&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -115,11 +115,11 @@
 
 @layer components {
   .btn-primary {
-    @apply bg-benin-green text-white px-6 py-3 rounded-lg font-medium shadow-md hover:shadow-lg transition-all duration-300 hover:-translate-y-1;
+    @apply px-6 py-3 bg-benin-green text-white rounded-lg font-medium flex items-center justify-center transition-all shadow-lg shadow-benin-green/20 hover:shadow-xl hover:shadow-benin-green/30;
   }
 
   .btn-secondary {
-    @apply bg-togo-yellow text-gray-900 px-6 py-3 rounded-lg font-medium shadow-md hover:shadow-lg transition-all duration-300 hover:-translate-y-1;
+    @apply px-6 py-3 border-2 border-benin-green/50 text-benin-green rounded-lg font-medium flex items-center justify-center transition-all hover:bg-benin-green/5 relative overflow-hidden;
   }
 
   .btn-accent {
@@ -128,5 +128,185 @@
   
   .input-field {
     @apply px-4 py-3 rounded-lg border border-gray-300 focus:ring-2 focus:ring-benin-green focus:border-transparent focus:outline-none transition-all duration-200;
+  }
+
+  .btn-primary-sm {
+    @apply px-4 py-2 bg-benin-green text-white rounded-lg font-medium flex items-center justify-center text-sm transition-all;
+  }
+
+  .font-display {
+    font-family: 'Montserrat Alternates', sans-serif;
+  }
+
+  /* Hero section */
+  .country-badge {
+    @apply flex items-center px-3 py-1 bg-benin-green text-white rounded-full font-medium text-sm shadow-lg;
+  }
+
+  .country-badge .flag {
+    @apply mr-2;
+  }
+
+  .input-label {
+    @apply block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1;
+  }
+
+  .family-option {
+    @apply flex flex-col items-center p-2 border rounded-lg transition-all hover:border-benin-green;
+  }
+
+  .family-option.active {
+    @apply bg-benin-green/10 border-benin-green;
+  }
+
+  .family-option .icon {
+    @apply text-2xl mb-1;
+  }
+
+  .family-option .text {
+    @apply text-xs;
+  }
+
+  /* Features */
+  .feature-card {
+    @apply bg-white dark:bg-gray-800 rounded-xl p-6 transition-all hover:shadow-xl relative overflow-hidden;
+  }
+
+  .feature-card::after {
+    content: '';
+    @apply absolute bottom-0 left-0 h-1 w-0 bg-benin-green transition-all duration-300;
+  }
+
+  .feature-card:hover::after {
+    @apply w-full;
+  }
+
+  .feature-icon {
+    @apply h-12 w-12 bg-benin-green/10 rounded-lg flex items-center justify-center mb-4;
+  }
+
+  .feature-icon-svg {
+    @apply h-6 w-6 text-benin-green;
+  }
+
+  .feature-title {
+    @apply text-xl font-bold mb-2 text-gray-900 dark:text-white;
+  }
+
+  .feature-description {
+    @apply text-gray-600 dark:text-gray-400 mb-4;
+  }
+
+  .feature-graphic {
+    @apply mt-auto pt-4;
+  }
+
+  /* Cartes et statistiques */
+  .counties-map {
+    @apply relative bg-white dark:bg-gray-800 rounded-xl shadow-lg p-4;
+  }
+
+  .country-path {
+    @apply fill-gray-200 dark:fill-gray-700 stroke-gray-400 dark:stroke-gray-500 stroke-2 transition-all cursor-pointer;
+  }
+
+  .country-path:hover, .country-path.active {
+    @apply fill-benin-green/20 stroke-benin-green;
+  }
+
+  .country-path.togo:hover, .country-path.togo.active {
+    @apply fill-togo-red/20 stroke-togo-red;
+  }
+
+  .point-of-interest {
+    @apply fill-white stroke-benin-green stroke-2 cursor-pointer transition-all;
+  }
+
+  .point-of-interest:hover {
+    @apply fill-benin-green;
+  }
+
+  .country-infobox {
+    @apply absolute top-4 right-4 bg-white dark:bg-gray-800 p-4 rounded-lg shadow-lg w-64;
+  }
+
+  .legislation-points {
+    @apply my-3 text-sm space-y-1;
+  }
+
+  .legislation-points li {
+    @apply flex items-center before:content-['•'] before:text-benin-green before:mr-2;
+  }
+
+  /* Témoignages */
+  .testimonial-card {
+    @apply bg-white dark:bg-gray-800 rounded-xl p-6 shadow-lg transition-all hover:shadow-xl;
+  }
+
+  .testimonial-header {
+    @apply flex items-center space-x-4 mb-4;
+  }
+
+  .avatar-container {
+    @apply relative;
+  }
+
+  .avatar {
+    @apply h-14 w-14 rounded-full object-cover border-2 border-benin-green;
+  }
+
+  .testimonial-badge {
+    @apply absolute -bottom-1 -right-1 h-6 w-6 flex items-center justify-center rounded-full bg-white dark:bg-gray-800 shadow text-sm;
+  }
+
+  .rating {
+    @apply flex ml-auto;
+  }
+
+  .star {
+    @apply h-4 w-4 text-gray-300;
+  }
+
+  .star.filled {
+    @apply text-amber-400;
+  }
+
+  .testimonial-content {
+    @apply italic text-gray-600 dark:text-gray-400 mb-4;
+  }
+
+  .testimonial-video-trigger {
+    @apply flex items-center text-sm text-benin-green cursor-pointer hover:underline;
+  }
+
+  .video-icon {
+    @apply h-4 w-4 mr-1;
+  }
+
+  /* Animations */
+  @keyframes float {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-10px); }
+  }
+
+  @keyframes float-reverse {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(10px); }
+  }
+
+  .animate-float {
+    animation: float 6s ease-in-out infinite;
+  }
+
+  .animate-float-slow {
+    animation: float 8s ease-in-out infinite;
+  }
+
+  .animate-float-reverse {
+    animation: float-reverse 7s ease-in-out infinite;
+  }
+
+  .animate-ping-slow {
+    animation: ping 3s cubic-bezier(0, 0, 0.2, 1) infinite;
   }
 }

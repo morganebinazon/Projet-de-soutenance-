@@ -22,7 +22,12 @@ export function CountryProvider({
   storageKey = "paye-afrique-country",
 }: CountryProviderProps) {
   const [country, setCountryState] = useState<CountryId>(
-    () => (localStorage.getItem(storageKey) as CountryId) || defaultCountry
+    () => {
+      const savedCountry = localStorage.getItem(storageKey);
+      return (savedCountry === "benin" || savedCountry === "togo") 
+        ? savedCountry 
+        : defaultCountry;
+    }
   );
 
   const setCountry = (newCountry: CountryId) => {
