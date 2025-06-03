@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import Layout from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -17,90 +17,7 @@ import jsPDF from "jspdf";
 import { useAuth } from "@/hooks/use-auth";
 import emailService from "@/services/email.service";
 import { toast } from "@/components/ui/use-toast";
-
-// Constantes pour les calculs des frais professionnels
-const FRAIS_PRO_RATE = 0.20; // 20% pour frais professionnels
-const FRAIS_PRO_PLAFOND_ANNUEL = 600000 * 12; // 600 000 FCFA par mois * 12
-const FRAIS_PRO_PLAFOND_MENSUEL = FRAIS_PRO_PLAFOND_ANNUEL / 12; // Plafond mensuel
-
-// Constantes pour les calculs au Bénin
-const BENIN = {
-  CNSS: {
-    SALARIAL: 0.036,          // 3.6% cotisation salariale
-    PATRONAL: {
-      VIEILLESSE: 0.10,       // 10% cotisation patronale vieillesse
-      PRESTATIONS_FAM: 0.06,  // 6% prestations familiales
-      ACCIDENTS: 0.005        // 0.5% accidents du travail
-    }
-  },
-  FRAIS_PRO: {
-    TAUX: 0.20,              // 20% pour frais professionnels
-    PLAFOND_MENSUEL: 600000  // 600 000 FCFA par mois
-  },
-  ITS: {
-    TRANCHES: [
-      { min: 0, max: 60000, taux: 0 },
-      { min: 60001, max: 150000, taux: 0.10 },
-      { min: 150001, max: 250000, taux: 0.15 },
-      { min: 250001, max: 500000, taux: 0.19 },
-      { min: 500001, max: Infinity, taux: 0.30 }
-    ]
-  }
-};
-
-interface SimulationDetails {
-    cnss: {
-        base: number;
-        taux: number;
-        montant: number;
-    };
-    fraisProfessionnels: {
-        base: number;
-        taux: number;
-        montant: number;
-    };
-    patronales: {
-        base: number;
-        montantTotal: number;
-        details: {
-            versementPatronal: {
-                taux: number;
-                montant: number;
-            };
-            prestationsFamiliales: {
-                taux: number;
-                montant: number;
-            };
-            assuranceRetraite: {
-                taux: number;
-                montant: number;
-            };
-            risqueProfessionnel: {
-                taux: number;
-                montant: number;
-            };
-        };
-    };
-    its?: {
-        baseImposable: number;
-        montant: number;
-    };
-    irpp?: {
-        baseImposable: number;
-        montant: number;
-        reductionFamiliale: number;
-    };
-}
-
-const formatDate = (date: Date): string => {
-  return date.toLocaleDateString('fr-FR', {
-    year: 'numeric',
-    month: 'long',
-    day: 'numeric',
-    hour: '2-digit',
-    minute: '2-digit'
-  });
-};
+import { calculateCNSS, calculateImpot, calculateFraisPro, calculateITSBenin, calculateChargesPatronalesTogo } from "@/constants/tax";
 
 const Simulation = () => {
   const { country } = useCountry();
@@ -112,7 +29,6 @@ const Simulation = () => {
   const [housingBonus, setHousingBonus] = useState<number>(0);
   const [natureBenefits, setNatureBenefits] = useState<number>(0);
   const [performanceBonus, setPerformanceBonus] = useState<number>(0);
-
   const [familyStatus, setFamilyStatus] = useState<string>("single");
   const [children, setChildren] = useState<string>("0");
   const [simulationType, setSimulationType] = useState<string>("gross-to-net");
@@ -128,161 +44,122 @@ const Simulation = () => {
   const [customSector, setCustomSector] = useState<string>("");
   const [isSendingEmail, setIsSendingEmail] = useState(false);
 
-  // Fonction pour calculer le quotient familial
-  const getQuotientFamilialParts = () => {
-    let parts = 1; // Base pour célibataire sans enfant
-
-    if (familyStatus === "married") {
-      parts = 2; // Marié(e)
-    } else if (familyStatus === "divorced" || familyStatus === "widowed") {
-      parts = 1.5; // Divorcé(e)/Veuf(ve)
-    }
-
-    const numChildren = parseInt(children);
-    // Règles pour les enfants : 0.5 part par enfant jusqu'à 3, puis 0.25 au-delà
-    if (numChildren > 0) {
-      if (numChildren <= 3) {
-        parts += numChildren * 0.5;
-      } else {
-        parts += 3 * 0.5 + (numChildren - 3) * 0.25;
-      }
-    }
+  // Fonction de test pour vérifier les calculs
+  const testCalculBenin = () => {
+    const salaireBrut = 421670;
     
-    // Plafonnement à 5 parts maximum
-    return Math.min(parts, 5);
+    // 1. Calcul CNSS (3.6%)
+    const cnss = calculateCNSS(salaireBrut, "benin");
+    console.log("1. CNSS (3.6%):", Math.round(cnss), "FCFA");
+    
+    // 2. Calcul des frais professionnels
+    const fraisPro = calculateFraisPro(salaireBrut);
+    console.log("2. Frais professionnels:", Math.round(fraisPro), "FCFA");
+    
+    // 3. Base imposable
+    const baseImposable = salaireBrut - cnss - fraisPro;
+    console.log("3. Base imposable:", Math.round(baseImposable), "FCFA");
+    
+    // 4. Calcul ITS par tranches
+    const its = calculateITSBenin(baseImposable);
+    console.log("4. ITS total:", Math.round(its), "FCFA");
+    
+    // 5. Calcul du salaire net
+    const salaireNet = salaireBrut - cnss - its;
+    console.log("5. Salaire net:", Math.round(salaireNet), "FCFA");
+    
+    return {
+      salaireBrut,
+      cnss,
+      fraisPro,
+      baseImposable,
+      its,
+      salaireNet
+    };
   };
+
+  // Exécuter le test au chargement du composant
+  useEffect(() => {
+    console.log("=== Test de calcul pour 421 670 FCFA ===");
+    const resultats = testCalculBenin();
+    console.log("=== Fin du test ===");
+  }, []);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     // Bloquer la soumission si en mode Net->Brut et afficher un message
     if (simulationType === "net-to-gross") {
-        alert("La simulation Net → Brut n'est pas encore implémentée avec précision pour les règles fiscales complexes. Veuillez utiliser la simulation Brut → Net.");
-        setResults(null); // Clear previous results if any
-        return;
+      toast({
+        title: "Non disponible",
+        description: "La simulation Net → Brut n'est pas encore implémentée avec précision pour les règles fiscales complexes. Veuillez utiliser la simulation Brut → Net.",
+        variant: "destructive"
+      });
+      setResults(null); // Clear previous results if any
+      return;
     }
     calculateResults();
   };
 
   const calculateResults = () => {
-    if (simulationType === "net-to-gross") {
-      setResults(null);
-      alert("La simulation Net → Brut n'est pas encore implémentée avec précision pour les règles fiscales complexes. Veuillez utiliser la simulation Brut → Net.");
-      return;
-    }
+    if (!grossSalary) return;
 
-    if (country === "benin") {
-      // 1. Calcul du Salaire Brut Total
-      const salaireBase = grossSalary;
-      const totalPrimes = transportBonus + housingBonus + natureBenefits + performanceBonus + exceptionalBonus;
-      const salaireBrutTotal = salaireBase + totalPrimes;
-
-      // 2. Calcul des cotisations sociales (CNSS)
-      const cotisationCNSS = Math.round(salaireBrutTotal * BENIN.CNSS.SALARIAL);
-
-      // 3. Calcul des frais professionnels (20% plafonné)
-      const fraisPro = Math.round(Math.min(
-        salaireBrutTotal * BENIN.FRAIS_PRO.TAUX,
-        BENIN.FRAIS_PRO.PLAFOND_MENSUEL
-      ));
-
-      // 4. Calcul de la base imposable ITS
-      const baseImposableITS = salaireBrutTotal - cotisationCNSS - fraisPro;
-
-      // 5. Calcul de l'ITS par tranches
-      let its = 0;
-      let baseRestante = baseImposableITS;
-
-      for (let i = 0; i < BENIN.ITS.TRANCHES.length; i++) {
-        const tranche = BENIN.ITS.TRANCHES[i];
-        const tranchePrecedente = i > 0 ? BENIN.ITS.TRANCHES[i - 1] : null;
-        const min = tranchePrecedente ? tranchePrecedente.max + 1 : tranche.min;
-        const max = tranche.max;
-        
-        if (baseRestante <= 0) break;
-        
-        const montantImposableDansLaTranche = Math.min(
-          baseRestante,
-          max - min + 1
-        );
-        
-        its += Math.round(montantImposableDansLaTranche * tranche.taux);
-        baseRestante -= montantImposableDansLaTranche;
+    // Salaire brut total (incluant les primes)
+    const salaireBrut = grossSalary + transportBonus + housingBonus + natureBenefits + performanceBonus + exceptionalBonus;
+    
+    // Calcul des cotisations sociales
+    const cotisationsSociales = calculateCNSS(salaireBrut, country);
+    
+    // Calcul des frais professionnels (20% du brut - cotisations, plafonné)
+    const fraisPro = calculateFraisPro(salaireBrut, cotisationsSociales);
+    
+    // Base imposable pour l'IRPP (après CNSS et frais pro)
+    const baseImposable = salaireBrut - cotisationsSociales - fraisPro;
+    
+    // Calcul de l'IRPP
+    const impot = calculateImpot(salaireBrut, country, familyStatus, parseInt(children));
+    
+    // Calcul du salaire net
+    const salaireNet = salaireBrut - cotisationsSociales - impot;
+    
+    // Calcul des charges patronales
+    const chargesPatronales = calculateChargesPatronalesTogo(salaireBrut);
+    
+    // Mise à jour des résultats avec tous les détails
+    setResults({
+      // Montants principaux
+      salaireBrut: grossSalary,
+      totalGross: salaireBrut,
+      salaireNet: salaireNet,
+      netSalary: salaireNet,
+      
+      // Cotisations et déductions
+      cnss: cotisationsSociales,
+      socialContributionsEmployee: cotisationsSociales,
+      fraisPro: fraisPro,
+      impot: impot,
+      incomeTax: impot,
+      
+      // Base de calcul
+      baseImposable: baseImposable,
+      taxableIncomeITS_IRPP: baseImposable,
+      
+      // Charges patronales
+      chargesPatronales: chargesPatronales,
+      employerSocialContributions: chargesPatronales.total,
+      totalEmployerCost: salaireBrut + chargesPatronales.total,
+      
+      // Quotient familial (à implémenter plus tard)
+      quotientFamilialParts: 1,
+      
+      // Détail des avantages
+      avantages: {
+        transport: transportBonus,
+        logement: housingBonus,
+        nature: natureBenefits,
+        performance: performanceBonus,
+        exceptionnel: exceptionalBonus
       }
-
-      // 6. Calcul des charges patronales
-      const chargesPatronales = {
-        vieillesse: Math.round(salaireBrutTotal * BENIN.CNSS.PATRONAL.VIEILLESSE),
-        prestationsFamiliales: Math.round(salaireBrutTotal * BENIN.CNSS.PATRONAL.PRESTATIONS_FAM),
-        accidentsTravail: Math.round(salaireBrutTotal * BENIN.CNSS.PATRONAL.ACCIDENTS)
-      };
-
-      const totalChargesPatronales = 
-        chargesPatronales.vieillesse + 
-        chargesPatronales.prestationsFamiliales + 
-        chargesPatronales.accidentsTravail;
-
-      // 7. Calcul du salaire net et du coût employeur
-      const salaireNet = salaireBrutTotal - cotisationCNSS - its;
-      const coutTotalEmployeur = salaireBrutTotal + totalChargesPatronales;
-
-      // Mise à jour des résultats
-      setResults({
-        grossSalaryInput: salaireBase,
-        exceptionalBonus,
-        transportBonus,
-        housingBonus,
-        natureBenefits,
-        performanceBonus,
-        totalRecurringBonuses: totalPrimes - exceptionalBonus,
-        totalGross: salaireBrutTotal,
-        netSalary: salaireNet,
-        socialContributionsEmployee: cotisationCNSS,
-        incomeTax: its,
-        employerSocialContributions: totalChargesPatronales,
-        totalEmployerCost: coutTotalEmployeur,
-        country,
-        familyStatus,
-        children: parseInt(children),
-        quotientFamilialParts: getQuotientFamilialParts(),
-        details: {
-          cnss: {
-            base: salaireBrutTotal,
-            taux: BENIN.CNSS.SALARIAL,
-            montant: cotisationCNSS
-          },
-          fraisProfessionnels: {
-            base: salaireBrutTotal,
-            taux: BENIN.FRAIS_PRO.TAUX,
-            montant: fraisPro
-          },
-          its: {
-            baseImposable: baseImposableITS,
-            montant: its
-          },
-          patronales: {
-            base: salaireBrutTotal,
-            montantTotal: totalChargesPatronales,
-            details: {
-              versementPatronal: {
-                taux: BENIN.CNSS.PATRONAL.VIEILLESSE,
-                montant: chargesPatronales.vieillesse
-              },
-              prestationsFamiliales: {
-                taux: BENIN.CNSS.PATRONAL.PRESTATIONS_FAM,
-                montant: chargesPatronales.prestationsFamiliales
-              },
-              risqueProfessionnel: {
-                taux: BENIN.CNSS.PATRONAL.ACCIDENTS,
-                montant: chargesPatronales.accidentsTravail
-              }
-            }
-          }
-        }
-      });
-    } else if (country === "togo") {
-        // Garder le code existant pour le Togo
-        // ... existing Togo calculation code ...
-    }
+    });
   };
 
   const formatCurrency = (value: number) => {
@@ -1090,17 +967,17 @@ const Simulation = () => {
                               <p className="font-medium">Salaire brut mensuel</p>
                               <p className="text-xs text-gray-500">Montant de base</p>
                             </div>
-                            <p className="text-lg font-bold">{formatCurrency(results.grossSalaryInput)}</p>
+                            <p className="text-lg font-bold">{formatCurrency(results.salaireBrut)}</p>
                           </div>
                           
                           {/* Primes (afficher si > 0) */}
-                          {(results.exceptionalBonus > 0 || results.transportBonus > 0 || results.housingBonus > 0 || results.natureBenefits > 0 || results.performanceBonus > 0) && (
+                          {(results.avantages.exceptionnel > 0 || results.avantages.transport > 0 || results.avantages.logement > 0 || results.avantages.nature > 0 || results.avantages.performance > 0) && (
                               <div className="flex justify-between items-center py-2 border-b border-dashed border-gray-200 dark:border-gray-700">
                                   <div>
                                       <p className="font-medium">Total Primes</p>
                                       <p className="text-xs text-gray-500">Except. + Transp. + Logt + Nat. + Rend.</p>
                                   </div>
-                                  <p className="text-lg font-bold text-blue-600">{formatCurrency(results.exceptionalBonus + results.transportBonus + results.housingBonus + results.natureBenefits + results.performanceBonus)}</p>
+                                  <p className="text-lg font-bold text-blue-600">{formatCurrency(results.avantages.exceptionnel + results.avantages.transport + results.avantages.logement + results.avantages.nature + results.avantages.performance)}</p>
                               </div>
                           )}
 
@@ -1111,7 +988,7 @@ const Simulation = () => {
                                   <p className="text-xs text-gray-500">Base + Toutes les primes</p>
                               </div>
                               <p className="text-xl font-extrabold text-green-700 dark:text-green-400">
-                                  {formatCurrency(results.totalGross)}
+                                  {formatCurrency(results.salaireBrut)}
                               </p>
                           </div>
                           
@@ -1122,7 +999,7 @@ const Simulation = () => {
                                 <MinusCircle className="h-4 w-4 mr-2 text-togo-red group-hover:text-togo-red/70" />
                                 Cotisations sociales salariales
                               </button>
-                              <p className="text-togo-red font-medium">- {formatCurrency(results.socialContributionsEmployee)}</p>
+                              <p className="text-togo-red font-medium">- {formatCurrency(results.cnss)}</p>
                             </div>
                             
                             {detailsExpanded.cnss && (
@@ -1131,18 +1008,18 @@ const Simulation = () => {
                                   <>
                                     <div className="flex justify-between">
                                       <span>• Base CNSS</span>
-                                      <span>{formatCurrency(results.details.cnss.base)}</span>
+                                      <span>{formatCurrency(results.salaireBrut)}</span>
                                     </div>
                                     <div className="flex justify-between">
                                       <span>• CNSS (3.6%)</span>
-                                      <span>- {formatCurrency(results.details?.cnss?.montant || 0)}</span>
+                                      <span>- {formatCurrency(results.cnss)}</span>
                                     </div>
                                   </>
                                 ) : (
                                   <>
                                     <div className="flex justify-between">
                                       <span>• CNSS (4% du salaire brut)</span>
-                                      <span>- {formatCurrency(results.socialContributionsEmployee)}</span>
+                                      <span>- {formatCurrency(results.cnss)}</span>
                                     </div>
                                   </>
                                 )}
@@ -1157,7 +1034,7 @@ const Simulation = () => {
                                 <MinusCircle className="h-4 w-4 mr-2 text-togo-red group-hover:text-togo-red/70" />
                                 {country === "benin" ? "Impôt sur les Salaires (ITS)" : "Impôt sur le revenu (IRPP)"}
                               </button>
-                              <p className="text-togo-red font-medium">- {formatCurrency(results.incomeTax)}</p>
+                              <p className="text-togo-red font-medium">- {formatCurrency(results.impot)}</p>
                             </div>
                             {detailsExpanded.irpp && (
                               <div className="pl-6 space-y-1 text-sm text-gray-600 dark:text-gray-400">
@@ -1165,19 +1042,19 @@ const Simulation = () => {
                                   <>
                                     <div className="flex justify-between">
                                       <span>• Salaire brut</span>
-                                      <span>{formatCurrency(results.totalGross)}</span>
+                                      <span>{formatCurrency(results.salaireBrut)}</span>
                                     </div>
                                     <div className="flex justify-between">
                                       <span>• CNSS (3.6%)</span>
-                                      <span>- {formatCurrency(results.details?.cnss?.montant || 0)}</span>
+                                      <span>- {formatCurrency(results.cnss)}</span>
                                     </div>
                                     <div className="flex justify-between">
                                       <span>• Frais professionnels (20%)</span>
-                                      <span>- {formatCurrency(Math.min(results.totalGross * 0.20, 600000))}</span>
+                                      <span>- {formatCurrency(results.fraisPro)}</span>
                                     </div>
                                     <div className="flex justify-between font-medium border-t border-gray-200 dark:border-gray-700 pt-1 mt-1">
                                       <span>Base imposable ITS</span>
-                                      <span>{formatCurrency(results.details.its.baseImposable)}</span>
+                                      <span>{formatCurrency(results.salaireBrut - results.cnss - results.fraisPro)}</span>
                                     </div>
                                     <p className="text-xs text-gray-500 mt-2">
                                       L'ITS est calculé par tranches :
@@ -1194,19 +1071,19 @@ const Simulation = () => {
                                   <>
                                     <div className="flex justify-between">
                                       <span>• Salaire brut</span>
-                                      <span>{formatCurrency(results.totalGross)}</span>
+                                      <span>{formatCurrency(results.salaireBrut)}</span>
                                     </div>
                                     <div className="flex justify-between">
                                       <span>• CNSS (9.68%)</span>
-                                      <span>- {formatCurrency(results.details.cnss.montant)}</span>
+                                      <span>- {formatCurrency(results.cnss)}</span>
                                     </div>
                                     <div className="flex justify-between">
                                       <span>• Frais professionnels</span>
-                                      <span>- {formatCurrency(Math.min(results.totalGross * FRAIS_PRO_RATE, FRAIS_PRO_PLAFOND_ANNUEL / 12))}</span>
+                                      <span>- {formatCurrency(results.fraisPro)}</span>
                                     </div>
                                     <div className="flex justify-between font-medium border-t border-gray-200 dark:border-gray-700 pt-1 mt-1">
                                       <span>Base imposable IRPP</span>
-                                      <span>{formatCurrency(results.details.irpp.baseImposable)}</span>
+                                      <span>{formatCurrency(results.salaireBrut - results.cnss - results.fraisPro)}</span>
                                     </div>
                                     <p className="text-xs text-gray-500 mt-2">
                                       L'IRPP est calculé par tranches :
@@ -1223,11 +1100,11 @@ const Simulation = () => {
                                       <div className="mt-2 pt-2 border-t border-gray-200 dark:border-gray-700">
                                         <div className="flex justify-between text-sm">
                                           <span>IRPP avant réduction familiale</span>
-                                          <span>{formatCurrency(results.details.irpp.montant + results.details.irpp.reductionFamiliale)}</span>
+                                          <span>{formatCurrency(results.impot)}</span>
                                         </div>
                                         <div className="flex justify-between text-sm text-green-600">
                                           <span>Réduction familiale ({Math.min(parseInt(children), 6)} enfant{parseInt(children) > 1 ? 's' : ''})</span>
-                                          <span>- {formatCurrency(results.details.irpp.reductionFamiliale)}</span>
+                                          <span>- {formatCurrency(results.impot * 0.2)}</span>
                                         </div>
                                       </div>
                                     )}
@@ -1243,7 +1120,7 @@ const Simulation = () => {
                               <p className="font-bold text-benin-green">Salaire net à payer</p>
                               <p className="text-xs text-gray-600">Versé sur compte bancaire</p>
                             </div>
-                            <p className="text-2xl font-bold text-benin-green">{formatCurrency(results.netSalary)}</p>
+                            <p className="text-2xl font-bold text-benin-green">{formatCurrency(results.salaireNet)}</p>
                           </div>
                         </div>
                       </div>
@@ -1262,7 +1139,7 @@ const Simulation = () => {
                                 <MinusCircle className="h-4 w-4 mr-2 text-gray-600 group-hover:text-gray-400" />
                                 Charges patronales
                               </button>
-                              <p className="text-gray-600 font-medium">+ {formatCurrency(results.employerSocialContributions)}</p>
+                              <p className="text-gray-600 font-medium">+ {formatCurrency(results.salaireBrut * 0.17)}</p>
                             </div>
                             
                             {detailsExpanded.employerCosts && (
@@ -1271,26 +1148,26 @@ const Simulation = () => {
                                   <>
                                     <div className="flex justify-between">
                                       <span>• CNSS Vieillesse (10%)</span>
-                                      <span>+ {formatCurrency(Math.min(results.totalGross, 160000) * 0.10)}</span>
+                                      <span>+ {formatCurrency(Math.min(results.salaireBrut, 160000) * 0.10)}</span>
                                     </div>
                                     <div className="flex justify-between">
                                       <span>• CNSS Prestations Familiales (6%)</span>
-                                      <span>+ {formatCurrency(Math.min(results.totalGross, 160000) * 0.06)}</span>
+                                      <span>+ {formatCurrency(Math.min(results.salaireBrut, 160000) * 0.06)}</span>
                                     </div>
                                     <div className="flex justify-between">
                                       <span>• CNSS Accidents du Travail (0.5%)</span>
-                                      <span>+ {formatCurrency(Math.min(results.totalGross, 160000) * 0.005)}</span>
+                                      <span>+ {formatCurrency(Math.min(results.salaireBrut, 160000) * 0.005)}</span>
                                     </div>
                                     <div className="flex justify-between font-medium border-t border-gray-200 dark:border-gray-700 pt-1 mt-1">
                                       <span>Total charges patronales (15.4%)</span>
-                                      <span>+ {formatCurrency(results.employerSocialContributions)}</span>
+                                      <span>+ {formatCurrency(results.salaireBrut * 0.17)}</span>
                                     </div>
                                   </>
                                 ) : (
                                   <>
                                     <div className="flex justify-between">
                                       <span>• CNSS Patronale (17.07%)</span>
-                                      <span>+ {formatCurrency(results.employerSocialContributions)}</span>
+                                      <span>+ {formatCurrency(results.salaireBrut * 0.17)}</span>
                                     </div>
                                     <p className="text-xs text-gray-500 mt-2">
                                       Inclut : Pensions, Prestations Familiales, Accidents du Travail
@@ -1306,7 +1183,7 @@ const Simulation = () => {
                               <p className="font-medium">Coût total employeur</p>
                               <p className="text-xs text-gray-500">Inclut toutes les charges patronales</p>
                             </div>
-                            <p className="text-xl font-bold">{formatCurrency(results.totalEmployerCost)}</p>
+                            <p className="text-xl font-bold">{formatCurrency(results.salaireBrut * 1.17)}</p>
                           </div>
                         </div>
                       </div>
@@ -1375,7 +1252,7 @@ const Simulation = () => {
                           <li className="flex justify-between">
                             <span>Taux de prélèvement:</span>
                             <span className="font-medium">
-                               {results.totalGross > 0 ? `${Math.round(((results.totalGross - results.netSalary) / results.totalGross) * 100)}%` : '0%'}
+                               {results.salaireBrut > 0 ? `${Math.round(((results.salaireBrut - results.salaireNet) / results.salaireBrut) * 100)}%` : '0%'}
                             </span>
                           </li>
                         </ul>
@@ -1405,4 +1282,4 @@ const Simulation = () => {
   );
 };
 
-export default Simulation; 
+export default Simulation;

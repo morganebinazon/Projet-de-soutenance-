@@ -6,6 +6,7 @@ import { Slider } from "@/components/ui/slider";
 import Layout from "@/components/layout/Layout";
 import { useCountry } from "@/hooks/use-country";
 import { Input } from "@/components/ui/input";
+import { calculateCNSS, calculateImpot } from "@/constants/tax";
 
 const Index = () => {
   const { country } = useCountry();
@@ -13,8 +14,13 @@ const Index = () => {
   const [familyStatus, setFamilyStatus] = useState("single");
   const [childrenCount, setChildrenCount] = useState(0);
   
-  // Constantes mises à jour 2025
-  const CNSS_PLAFOND_BENIN = 160000; // FCFA
+  // Constantes pour les calculs des frais professionnels
+  const FRAIS_PRO_RATE = 0.20; // 20% pour frais professionnels
+  const FRAIS_PRO_PLAFOND_ANNUEL = 600000 * 12; // 600 000 FCFA par mois * 12
+  const FRAIS_PRO_PLAFOND_MENSUEL = FRAIS_PRO_PLAFOND_ANNUEL / 12;
+
+  // Constantes CNSS 2025
+  const CNSS_PLAFOND_BENIN = 600000; // FCFA - Mis à jour pour 2025
   const CNSS_SALARIAL_RATE_BENIN = 0.036; // 3.6%
   const CNSS_EMPLOYER_RATE_BENIN = 0.154; // 15.4% (6.4% vieillesse + 9% PF + 0.5% AT)
   const CNSS_SALARIAL_RATE_TOGO = 0.0968; // 9.68%
@@ -22,11 +28,11 @@ const Index = () => {
 
   // Barème ITS Bénin 2025
   const ITS_TRANCHES_BENIN = [
-    { min: 0, max: 60000, taux: 0 },
-    { min: 60001, max: 150000, taux: 0.10 },
-    { min: 150001, max: 250000, taux: 0.15 },
-    { min: 250001, max: 500000, taux: 0.19 },
-    { min: 500001, max: Infinity, taux: 0.30 }
+    { min: 0, max: 50000, taux: 0 },
+    { min: 50001, max: 130000, taux: 0.10 },
+    { min: 130001, max: 280000, taux: 0.15 },
+    { min: 280001, max: 530000, taux: 0.20 },
+    { min: 530001, max: Infinity, taux: 0.30 }
   ];
 
   // Barème IRPP Togo 2025
@@ -39,121 +45,21 @@ const Index = () => {
     { min: 800001, max: Infinity, taux: 0.30 }
   ];
 
-  // Calcul du quotient familial
-  const getQuotientFamilialParts = () => {
-    let parts = 1; // Base pour célibataire sans enfant
+  // Calcul des montants
+  const cnssAmount = calculateCNSS(salaryValue, country);
+  const impotAmount = calculateImpot(salaryValue, country, familyStatus, childrenCount);
+  const netSalary = salaryValue - cnssAmount - impotAmount;
 
-    if (familyStatus === "married") {
-      parts = 2; // Base pour marié
-    } else if (familyStatus === "divorced" || familyStatus === "widowed") {
-      parts = 1.5; // Base pour divorcé ou veuf
-    }
+  // Pourcentages pour l'affichage
+  const cssCnssPercent = Math.round((cnssAmount / salaryValue) * 100);
+  const cssIrppPercent = Math.round((impotAmount / salaryValue) * 100);
 
-    // Ajout des parts pour les enfants (0.5 part par enfant)
-    if (childrenCount > 0) {
-      if (childrenCount <= 3) {
-        parts += childrenCount * 0.5;
-      } else {
-        parts += 3 * 0.5 + (childrenCount - 3) * 0.25; // Réduction au-delà de 3 enfants
-      }
-    }
-    
-    return Math.min(parts, 5); // Plafonnement à 5 parts
-  };
-
-  // Calcul du salaire net avec prise en compte du quotient familial
-  const getNetSalary = () => {
-    const quotientFamilialParts = getQuotientFamilialParts();
-    
-    if (country === "benin") {
-      // Calcul des cotisations CNSS (plafonné pour le Bénin)
-      const cnssBase = Math.min(salaryValue, CNSS_PLAFOND_BENIN);
-      const cnssCotisation = cnssBase * CNSS_SALARIAL_RATE_BENIN;
-
-      // Calcul de la base imposable avec abattement forfaitaire de 20%
-      const fraisPro = Math.min(salaryValue * 0.20, 20833.33); // 250,000 FCFA / 12 mois
-      const taxableIncome = salaryValue - cnssCotisation - fraisPro;
-      const taxableIncomePerPart = Math.max(0, taxableIncome / quotientFamilialParts);
-
-      // Calcul de l'ITS par tranches
-      let taxPerPart = 0;
-      let remainingIncome = taxableIncomePerPart;
-
-      for (const tranche of ITS_TRANCHES_BENIN) {
-        if (remainingIncome <= 0) break;
-        
-        const trancheAmount = Math.min(
-          remainingIncome,
-          tranche.max - tranche.min
-        );
-        
-        taxPerPart += trancheAmount * tranche.taux;
-        remainingIncome -= trancheAmount;
-      }
-
-      const totalTax = taxPerPart * quotientFamilialParts;
-      return Math.round(salaryValue - cnssCotisation - totalTax);
-
-    } else { // Togo
-      // Calcul des cotisations CNSS (pas de plafond)
-      const cnssCotisation = salaryValue * CNSS_SALARIAL_RATE_TOGO;
-
-      // Calcul de la base imposable avec abattement forfaitaire de 20%
-      const fraisPro = Math.min(salaryValue * 0.20, 20833.33); // 250,000 FCFA / 12 mois
-      const taxableIncome = salaryValue - cnssCotisation - fraisPro;
-      const taxableIncomePerPart = Math.max(0, taxableIncome / quotientFamilialParts);
-
-      // Calcul de l'IRPP par tranches
-      let taxPerPart = 0;
-      let remainingIncome = taxableIncomePerPart;
-
-      for (const tranche of IRPP_TRANCHES_TOGO) {
-        if (remainingIncome <= 0) break;
-        
-        const trancheAmount = Math.min(
-          remainingIncome,
-          tranche.max - tranche.min
-        );
-        
-        taxPerPart += trancheAmount * tranche.taux;
-        remainingIncome -= trancheAmount;
-      }
-
-      // Calcul de l'impôt total avec réduction pour charge de famille
-      let totalTax = taxPerPart * quotientFamilialParts;
-      
-      // Réduction pour charge de famille (20% par enfant, max 6 enfants)
-      if (childrenCount > 0) {
-        const reductionRate = Math.min(childrenCount, 6) * 0.20;
-        totalTax = totalTax * (1 - reductionRate);
-      }
-
-      return Math.round(salaryValue - cnssCotisation - totalTax);
-    }
+  // Fonction pour formater les montants en FCFA
+  const formatSalary = (amount) => {
+    return new Intl.NumberFormat('fr-FR').format(Math.round(amount));
   };
   
-  const formatSalary = (value) => {
-    return new Intl.NumberFormat('fr-FR').format(value);
-  };
-  
-  const netSalary = getNetSalary();
   const cssNetPercent = Math.round((netSalary / salaryValue) * 100);
-  
-  // Calcul des cotisations pour l'affichage
-  const getCNSSAmount = () => {
-    if (country === "benin") {
-      return Math.min(salaryValue, CNSS_PLAFOND_BENIN) * CNSS_SALARIAL_RATE_BENIN;
-    } else {
-      return salaryValue * CNSS_SALARIAL_RATE_TOGO;
-    }
-  };
-
-  const getImpotAmount = () => {
-    return salaryValue - netSalary - getCNSSAmount();
-  };
-  
-  const cssIrppPercent = Math.round(country === "benin" ? 10 : 12);
-  const cssCnssPercent = Math.round(country === "benin" ? 5.6 : 4.8);
   
   return (
     <Layout>
@@ -300,7 +206,7 @@ const Index = () => {
                             - CNSS ({country === "benin" ? "3.6%" : "9.68%"})
                           </span>
                           <span className="text-red-600 dark:text-red-400">
-                            -{formatSalary(getCNSSAmount())} FCFA
+                            -{formatSalary(cnssAmount)} FCFA
                           </span>
                         </div>
                         <div className="flex justify-between items-center text-sm">
@@ -308,7 +214,7 @@ const Index = () => {
                             - {country === "benin" ? "ITS" : "IRPP"}
                           </span>
                           <span className="text-red-600 dark:text-red-400">
-                            -{formatSalary(getImpotAmount())} FCFA
+                            -{formatSalary(impotAmount)} FCFA
                           </span>
                         </div>
                       </div>
@@ -716,7 +622,7 @@ const Index = () => {
         <div className="absolute inset-0 bg-gradient-to-br from-benin-green to-benin-green/80"></div>
         
         {/* African pattern overlay */}
-        <div className="absolute inset-0 opacity-10 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgdmlld0JveD0iMCAwIDYwIDYwIj48cGF0aCBmaWxsPSIjZmZmZmZmIiBkPSJNNDMuMjgsMjguODVsMi4yNS0uNjRhMi44NSwyLjg1LDAsMCwwLDEuOC0xLjc4LDIuODMsMi44MywwLDAsMC0uMy0yLjVBMywzLDAsMCwwLDQ1LjMxLDIyLjdhNC4zMSw0LjMxLDAsMCwwLTEsLjEybC0yLjI0LjY0YTIuODQsMi44NCwwLDAsMC0xLjc4LDEuNzhBMi44MiwyLjgyLDAsMCwwLDQwLjU4LDI4YTMsMywwLDAsMCwxLjcyLDEuMjNBNC4zMSw0LjMxLDAsMCwwLDQzLjI4LDI4Ljg1Wm0tMy41LTE1LjQ0TDQyLDEyLjc2YTIuODQsMi44NCwwLDAsMCwxLjc4LTEuNzgsMi44NCwyLjg0LDAsMCwwLS4yOS0yLjVBMywzLDAsMCwwLDQxLjgxLDcuMjZhMy44LDMuOCwwLDAsMC0xLC4xM2wtMi4yNS42NGEyLjg0LDIuODQwLDAsMCwwLTEuNzgsMS43OCwyLjgzLDIuODMsMCwwLDAsLjMsMi41LDMuMDcsMy4wNywwLDAsMCwxLjcxLDEuMjJBNC4zMSw0LjMxLDAsMCwwLDM5Ljc4LDEzLjQxWk01MS42LDQ5LjA2QTMuMDYsMy4wNiwwLDAsMCw0OS44OSw0Ny44YTQsNCwwLDAsMC0xLS4xM2wtMi4yNS42M2EzLDMsMCwwLDAtMS43OCwxLjc5LDMsMywwLDAsMCwuMywyLjVBMi44NSwyLjg1LDAsMCwwLDQ3LDUzLjgxYTMuOSwzLjksMCwwLDAsMS0uMTJsMi4yNC0uNjRhMi44NCwyLjg0LDAsMCwwLDEuNzgtMS43OEEyLjgzLDIuODMsMCwwLDAsNTEuNiw0OS4wNlptLTYuMTUtOS45LDIuMjUtLjY0YTIuODQsMi44NCwwLDAsMCwxLjc4LTEuNzgsMi44MywyLjgzLDAsMCwwLS4yOS0yLjUsMy4wNiwzLjA2LDAsMCwwLTEuNzItMS4yMyw0LDQsMCwwLDAtMS0uMTNsLTIuMjUuNjRhMi44NCwyLjg0LDAsMCwwLTEuNzgsMS43OSwyLjgyLDIuODIsMCwwLDAsLjMsMi41LDIuODQsMi44NCwwLDAsMCwxLjcyLDEuMjJBNC4zMSw0LjMxLDAsMCwwLDQ1LjQ1LDM5LjE2Wk0yNi4zNywxMC4yOWwyLjI1LS42NGEyLjgzLDIuODMsMCwwLDAsMS43OC0xLjc4QTIuODMsMi44MywwLDAsMCwzMC4xLDUuMzcsMywzLDAsMCwwLDI4LjM5LDQuMTRhNCw0LDAsMCwwLTEtLjEzbC0yLjI1LjY0YTIuODQsMi44NCwwLDAsMC0xLjc4LDEuNzgsMi44NCwyLjg0LDAsMCwwLC4zLDIuNSwzLDMsMCwwLDAsMS43MSwxLjIzQTQuMzEsNC4zMSwwLDAsMCwyNi4zNywxMC4yOVptMzEsMTQuNzRBMi44NSwyLjg1LDAsMCwwLDU5LDI2LjI1YTIuODUsMi44NSwwLDAsMC0uMTMtMWwtLjY0LTIuMjRhMi44NSwyLjg1LDAsMCwwLTEuNzktMS43OSwyLjgzLDIuODMsMCwwLDAtMi41LjNBMywzLDAsMCwwLDUyLjczLDIzLjJhNC4xLDQuMSwwLDAsMCwuMTMsMWwuNjQsMi4yNGEyLjg0LDIuODQsMCwwLDAsMS43OCwxLjc4LDIuODQsMi44NCwwLDAsMCwyLjUtLjI5QTMsMywwLDAsMCw1Ny4zNywyNVptLTE1LDI3LjczYTMsMywwLDEsMC00LjM0LjQ4QTMsMywwLDAsMCw0Mi4zNiw1Mi43M1pNNTQuODcsMzkuMTZhMywzLDAsMCwwLTEuODIsMS41NywzLDMsMCwwLDAsLjEyLDIuMzksMywyLDAsMCwwLDEuODIsMS41OCwzLDMsMCwwLDAsMi4zOS0uMTEsMywzLDAsMCwwLDEuNTgtMS44MywzLDMsMCwwLDAtLjEyLTIuMzksMywyLDAsMCwwLTEuODItMS41N0EzLDMsMCwwLDAsNTQuODcsMzkuMTZabS05LjQyLTE1LjIsOS42Ni0yLjc2YTIuODQsMi44NCwwLDAsMCwxLjc4LTEuNzgsMi44MywyLjgzLDAsMCwwLS4zLTIuNSwzLjA2LDMuMDYsMCwwLDAtMS43MS0xLjIzLDQuMzgsNC4zOCwwLDAsMC0xLS4xM2wtMy4wOC44OGEyLjgzLDIuODMsMCwwLDAtMS43OCwxLjc4LDIuODQsMi44NCwwLDAsMCwuMywyLjUsMywzLDAsMCwwLDEuNzEsMS4yMkE0LjM4LDQuMzgsMCwwLDAsMjYuMzMsMTUuM1ptNC40MSwxMy44YTIuODMsMi44MywwLDAsMC0uMTYtMkEyLjksMi45LDAsMCwwLDI5LjI1LDI2YTQuMTgsNC4xOCwwLDAsMC0uOC0uMjlsLTQuNjEtMS4wOWEyLjgzLDIuODMsMCwwLDAtMi40MS41MywyLjg0LDIuODQsMCwwLDAtLjg5LDIuMzMsMi45MywyLjkzLDAsMCwwLDEuMzIsMS45Miw0LjE4LDQuMTgsMCwwLDAsLjguMjlsNC42MiwxLjFhMi44NSwyLjg1LDAsMCwwLDIuNC0uNTNBMi44NSwyLjg1LDAsMCwwLDMwLjc0LDI5LjFaTTM3LDQ2LjE1YTMsMywwLDEsMC00LjM0LjQ4QTMsMywwLDAsMCwzNyw0Ni4xNVptMy40My0yMC40NGE0LjMxLDQuMzEsMCwwLDAsMC0xLjA2LDMsMywwLDAsMC0uNDgtMS45MSwzLjM0LDMuMzQsMCwwLDAtMS42Mi0xLjEsMi45MiwyLjkyLDAsMCwwLTIsLjE0LDIuOCwyLjgsMCwwLDAtMS4zNCwxLjM0LDIuOTIsMi45MiwwLDAsMC0uMTMsMmwtLjA2LS4wOWEzLjM0LDMuMzQsMCwwLDAsLjQ4LDEuOTEsMywyLDAsMCwwLDEuNjIsMS4xLDIuOTIsMi45MiwwLDAsMCwyLS4xNUEyLjc5LDIuNzksMCwwLDAsNDAuNDQsMjUuNzFabS0xNiw5LjMxYTMsMywwLDAsMC0xLjI3LDEuNzcsMy4wNSwzLjA1LDAsMCwwLC4yNCwyLjIxLDMsMywwLDAsMCwxLjc1LDEuMywzLDMsMCwwLDAsMi4yMy0uMjMsMywzLDAsMCwwLDEuMjgtMS43NiwzLjA3LDMuMDcsMCwwLDAtLjI0LTIuMjIsMywzLDAsMCwwLTEuNzYtMS4zQTMsMywwLDAsMCwyNC40NCwzNVptMi4zMS0xM0EyLjgzLDIuODMsMCwwLDAsMjguMTQsMjBhMi44MywyLjgzLDAsMCwwLS43Mi0xLjksMy4wOCwzLjA4LDAsMCwwLTEuODctLjk0LDMuNzYsMy43NiwwLDAsMC0uOTItLjA3bC00LjY2LjI4YTIuODMsMi44MywwLDAsMC0xLjM5LDIuMTQsMi44MiwyLjgyLDAsMCwwLC43MiwxLjksMy4wOCwzLjA4LDAsMCwwLDEuODcuOTQsMy43NiwzLjc2LDAsMCwwLC45Mi4wN1ptLTguMSw0LjQ5YTMsMywwLDAsMC0yLjI4LS4wOSwzLDMsMCwwLDAtMS43LDEuMzYsMywzLDAsMCwwLS4yOSwyLjI2LDMuMDYsMy4wNiwwLDAsMCwxLjM2LDEuNywzLDMsMCwwLDAsMi4yOC4wOSwzLDMsMCwwLDAsMS43LTEuMzYsMywzLDAsMCwwLC4yOS0yLjI1QTMuMDYsMy4wNiwwLDAsMCwxOC42NSwyNi40OVpNMzkuNTcsMzMuOTFBNCw0LDAsMCwwLDM4LDM0bC05LjgxLS4wNmEyLjg0LDIuODQsMCwwLDAtMi4xLjg4LDIuODQsMi44NCwwLDAsMC0uNTQsMi4yNSwzLDMsMCwwLDAsMS4yMiwxLjcxLDQuMDcsNC4wNywwLDAsMCwxLC4xM2w5LjgxLjA2YTIuODMsMi44MywwLDAsMCwyLjEtLjg4LDIuODMsMi44MywwLDAsMCwuNTQtMi4yNUEzLDMsMCwwLDAsMzkuNTcsMzMuOTFabS0xMi4yNCwxNS4yLDkuNjYtMi43NWEyLjgzLDIuODMsMCwwLDAsMS43OC0xLjc4LDIuODMsMi44MywwLDAsMC0uMy0yLjUsMy4wNiwzLjA2LDAsMCwwLTEuNzEtMS4yMyw0LDQsMCwwLDAtMS0uMTJsLTkuNjYsMi43NWEyLjgzLDIuODMsMCwwLDAtMS43OSwxLjc5LDIuODIsMi44MiwwLDAsMCwuMywyLjUsMywzLDAsMCwwLDEuNzIsMS4yMkEzLjksMy45LDAsMCwwLDI3LjMzLDQ5LjExWk02LjU5LDM0LjcxYTQsNCwwLDAsMC0uNjEuMzVsLTEuODIsMS41NUEyLjgyLDIuODIsMCwwLDAsMy40MiwzOWEyLjgzLDIuODMsMCwwLDAsMS4yMiwyLjA3QTMsMywwLDAsMCw2LjgxLDQxLjdhNCw0LDAsMCwwLC42MS0uMzZMMTkuMjUsMyIvPjwvc3ZnPg==')]"></div>
+        <div className="absolute inset-0 opacity-10 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI2MCIgaGVpZ2h0PSI2MCIgdmlld0JveD0iMCAwIDYwIDYwIj48cGF0aCBmaWxsPSIjZmZmZmZmIiBkPSJNNDMuMjgsMjguODVsMi4yNS0uNjRhMi44NSwyLjg1LDAsMCwwLDEuOC0xLjc4LDIuODMsMi44MywwLDAsMC0uMy0yLjVBMywzLDAsMCwwLDQ1LjMxLDIyLjdhNC4zMSw0LjMxLDAsMCwwLTEsLjEybC0yLjI0LjY0YTIuODQsMi44NCwwLDAsMC0xLjc4LDEuNzhBMi44MiwyLjgyLDAsMCwwLDQwLjU4LDI4YTMsMywwLDAsMCwxLjcyLDEuMjNBNC4zMSw0LjMxLDAsMCwwLDQzLjI4LDI4Ljg1Wm0tMy41LTE1LjQ0TDQyLDEyLjc2YTIuODQsMi44NCwwLDAsMCwxLjc4LTEuNzgsMi44NCwyLjg0LDAsMCwwLS4yOS0yLjVBMywzLDAsMCwwLDQxLjgxLDcuMjZhMy44LDMuOCwwLDAsMC0xLC4xM2wtMi4yNS42M2EyLjg0LDIuODQwLDAsMCwwLTEuNzgsMS43OCwyLjgzLDIuODMsMCwwLDAsLjMsMi41LDMuMDcsMy4wNywwLDAsMCwxLjcxLDEuMjJBNC4zMSw0LjMxLDAsMCwwLDM5Ljc4LDEzLjQxWk01MS42LDQ5LjA2QTMuMDYsMy4wNiwwLDAsMCw0OS44OSw0Ny44YTQsNCwwLDAsMC0xLS4xM2wtMi4yNS42M2EzLDMsMCwwLDAtMS43OCwxLjc5LDMsMywwLDAsMCwuMywyLjVBMi44NSwyLjg1LDAsMCwwLDQ3LDUzLjgxYTMuOSwzLjksMCwwLDAsMS0uMTJsMi4yNC0uNjRhMi44NCwyLjg0LDAsMCwwLDEuNzgtMS43OEEyLjgzLDIuODMsMCwwLDAsNTEuNiw0OS4wNlptLTYuMTUtOS45LDIuMjUtLjY0YTIuODQsMi44NCwwLDAsMCwxLjc4LTEuNzgsMi44MywyLjgzLDAsMCwwLS4yOS0yLjUsMy4wNiwzLjA2LDAsMCwwLTEuNzItMS4yMyw0LDQsMCwwLDAtMS0uMTNsLTIuMjUuNjRhMi44NCwyLjg0LDAsMCwwLTEuNzgsMS43OSwyLjgyLDIuODIsMCwwLDAsLjMtMi41LDIuODQsMi44NCwwLDAsMCwxLjcyLDEuMjJBNC4zMSw0LjMxLDAsMCwwLDQ1LjQ1LDM5LjE2Wk0yNi4zNywxMC4yOWwyLjI1LS42NGEyLjgzLDIuODMsMCwwLDAsMS43OC0xLjc4QTIuODMsMi44MywwLDAsMCwzMC4xLDUuMzcsMywzLDAsMCwwLDI4LjM5LDQuMTRhNCw0LDAsMCwwLTEtLjEzbC0yLjI1LjY0YTIuODQsMi44NCwwLDAsMC0xLjc4LDEuNzgsMi44NCwyLjg0LDAsMCwwLC4zLDIuNSwzLDMsMCwwLDAsMS43MSwxLjIzQTQuMzEsNC4zMSwwLDAsMCwyNi4zNywxMC4yOVptMzEsMTQuNzRBMi44NSwyLjg1LDAsMCwwLDU5LDI2LjI1YTIuODUsMi44NSwwLDAsMC0uMTMtMWwtLjY0LTIuMjRhMi44NSwyLjg1LDAsMCwwLTEuNzktMS43OSwyLjgzLDIuODMsMCwwLDAtMi41LjNBMywzLDAsMCwwLDUyLjczLDIzLjJhNC4xLDQuMSwwLDAsMCwuMTMsMWwuNjQsMi4yNGEyLjg0LDIuODQsMCwwLDAsMS43OCwxLjc4LDIuODQsMi44NCwwLDAsMCwyLjUtLjI5QTMsMywwLDAsMCw1Ny4zNywyNVptLTE1LDI3LjczYTMsMywwLDEsMC00LjM0LjQ4QTMsMywwLDAsMCw0Mi4zNiw1Mi43M1pNNTQuODcsMzkuMTZhMywzLDAsMCwwLTEuODIsMS41NywzLDMsMCwwLDAsLjEyLDIuMzksMywyLDAsMCwwLDEuODIsMS41OCwzLDMsMCwwLDAsMi4zOS0uMTEsMywzLDAsMCwwLDEuNTgtMS44MywzLDMsMCwwLDAtLjEyLTIuMzksMywyLDAsMCwwLTEuODItMS41N0EzLDMsMCwwLDAsNTQuODcsMzkuMTZabS05LjQyLTE1LjIsOS42Ni0yLjc2YTIuODQsMi44NCwwLDAsMCwxLjc4LTEuNzgsMi44MywyLjgzLDAsMCwwLS4zLTIuNSwzLjA2LDMuMDYsMCwwLDAtMS43MS0xLjIzLDQuMzgsNC4zOCwwLDAsMC0xLS4xM2wtMy4wOC44OGEyLjgzLDIuODMsMCwwLDAtMS43OCwxLjc4LDIuODQsMi44NCwwLDAsMCwuMywyLjUsMywzLDAsMCwwLDEuNzEsMS4yMkE0LjM4LDQuMzgsMCwwLDAsMjYuMzMsMTUuM1ptNC40MSwxMy44YTIuODMsMi44MywwLDAsMC0uMTYtMkEyLjksMi45LDAsMCwwLDI5LjI1LDI2YTQuMTgsNC4xOCwwLDAsMC0uOC0uMjlsLTQuNjEtMS4wOWEyLjgzLDIuODMsMCwwLDAtMi40MS41MywyLjg0LDIuODQsMCwwLDAtLjg5LDIuMzMsMi45MywyLjkzLDAsMCwwLDEuMzIsMS45Miw0LjE4LDQuMTgsMCwwLDAsLjguMjlsNC42MiwxLjFhMi44NSwyLjg1LDAsMCwwLDIuNC0uNTNBMi44NSwyLjg1LDAsMCwwLDMwLjc0LDI5LjFaTTM3LDQ2LjE1YTMsMywwLDEsMC00LjM0LjQ4QTMsMywwLDAsMCwzNyw0Ni4xNVptMy40My0yMC40NGE0LjMxLDQuMzEsMCwwLDAsMC0xLjA2LDMsMywwLDAsMC0uNDgtMS45MSwzLjM0LDMuMzQsMCwwLDAtMS42Mi0xLjEsMi45MiwyLjkyLDAsMCwwLTIsLjE0LDIuOCwyLjgsMCwwLDAtMS4zNCwxLjM0LDIuOTIsMi45MiwwLDAsMC0uMTMsMmwtLjA2LS4wOWEzLjM0LDMuMzQsMCwwLDAsLjQ4LDEuOTEsMywyLDAsMCwwLDEuNjIsMS4xLDIuOTIsMi45MiwwLDAsMCwyLS4xNUEyLjc5LDIuNzksMCwwLDAsNDAuNDQsMjUuNzFabS0xNiw5LjMxYTMsMywwLDAsMC0xLjI3LDEuNzcsMy4wNSwzLjA1LDAsMCwwLC4yNCwyLjIxLDMsMywwLDAsMCwxLjc1LDEuMywzLDMsMCwwLDAsMi4yMy0yLjIzLDMsMywwLDAsMCwxLjI4LTEuNzYsMy4wNywzLjA3LDAsMCwwLTEuNjQtMi4yMkEzLjksMy45LDAsMCwwLDI3LjMzLDQ5LjExWk02LjU5LDM0LjcxYTQsNCwwLDAsMC0uNjEuMzVsLTEuODIsMS41NUEyLjgyLDIuODIsMCwwLDAsMy40MiwzOWEyLjgzLDIuODMsMCwwLDAsMS4yMiwyLjA3QTMsMywwLDAsMCw2LjgxLDQxLjdhNCw0LDAsMCwwLC42MS0uMzZMMTkuMjUsMyIvPjwvc3ZnPg==')]"></div>
         
         <div className="container mx-auto px-4 relative">
           <div className="max-w-4xl mx-auto text-center">
