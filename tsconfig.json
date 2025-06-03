@@ -9,11 +9,20 @@
     "paths": {
       "@/*": ["./src/*"]
     },
-    "noImplicitAny": false,
-    "noUnusedParameters": false,
-    "skipLibCheck": true,
-    "allowJs": true,
-    "noUnusedLocals": false,
-    "strictNullChecks": false
+    
+    // --- Modifications pour les recommandations ---
+    "forceConsistentCasingInFileNames": true, // Activez cette option
+    "strict": true,                         // Activez le mode strict
+    
+    // Si vous activez "strict: true", les options suivantes deviennent redondantes ou sont surchargées.
+    // Il est recommandé de les retirer ou de les laisser sur true si vous souhaitez une stricte vérification
+    // mais "strict: true" les englobe déjà.
+    "noImplicitAny": true, // Sera inclus dans strict: true
+    "noUnusedParameters": true, // Sera inclus dans strict: true
+    "noUnusedLocals": true, // Sera inclus dans strict: true
+    "strictNullChecks": true, // Sera inclus dans strict: true
+
+    "skipLibCheck": true, // C'est une bonne option à garder, elle évite de vérifier les types des librairies tierces.
+    "allowJs": true // Bonne option si vous avez du code JavaScript dans votre projet.
   }
 }

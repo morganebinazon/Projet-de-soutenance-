@@ -1,5 +1,7 @@
+// Assurez-vous que c'est bien le contenu complet de votre fichier
+// Par exemple, si c'est 'src/hooks/use-country-comparison.ts' ou 'src/data/legislation.ts'
 
-interface LegislationItem {
+export interface LegislationItem { // <-- AJOUTEZ 'export' ICI
   feature: string;
   benin: string;
   togo: string;

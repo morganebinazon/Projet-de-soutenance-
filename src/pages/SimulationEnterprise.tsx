@@ -14,6 +14,9 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useCountry } from "@/hooks/use-country";
+import { Eye } from "lucide-react";
+import { FaEye } from "react-icons/fa";
+
 
 interface Employee {
   id: string;

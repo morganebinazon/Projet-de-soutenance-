@@ -1,6 +1,5 @@
-
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -17,43 +16,119 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useCountry } from "@/hooks/use-country";
+import { useAuth } from "@/hooks/use-auth";
 
-const registerSchema = z.object({
+// Schéma de validation pour l'étape 1
+const step1Schema = z.object({
   email: z.string().email("Email invalide"),
   password: z
     .string()
-    .min(8, "Le mot de passe doit contenir au moins 8 caractères"),
+    .min(8, "Le mot de passe doit contenir au moins 8 caractères")
+    .regex(
+      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/,
+      "Le mot de passe doit contenir au moins une majuscule, une minuscule, un chiffre et un caractère spécial"
+    ),
   confirmPassword: z.string(),
 }).refine(data => data.password === data.confirmPassword, {
   message: "Les mots de passe ne correspondent pas",
   path: ["confirmPassword"]
 });
 
-type RegisterFormValues = z.infer<typeof registerSchema>;
+// Schéma de validation pour l'étape 3 - Individuel
+const step3IndividualSchema = z.object({
+  firstName: z.string().min(2, "Le prénom est requis"),
+  lastName: z.string().min(2, "Le nom est requis"),
+  phone: z.string().min(8, "Le numéro de téléphone est requis"),
+});
+
+// Schéma de validation pour l'étape 3 - Entreprise
+const step3CompanySchema = z.object({
+  companyName: z.string().min(2, "Le nom de l'entreprise est requis"),
+  taxId: z.string().min(2, "Le numéro d'identification fiscale est requis"),
+  phone: z.string().min(8, "Le numéro de téléphone est requis"),
+});
+
+// Type pour le formulaire complet
+type RegisterFormValues = z.infer<typeof step1Schema> & 
+  Partial<z.infer<typeof step3IndividualSchema>> &
+  Partial<z.infer<typeof step3CompanySchema>>;
 
 const Register = () => {
   const { country } = useCountry();
+  const { register, isLoading, error } = useAuth();
+  const navigate = useNavigate();
   const [step, setStep] = useState<number>(1);
   const [accountType, setAccountType] = useState<"individual" | "company">("individual");
   
   const form = useForm<RegisterFormValues>({
-    resolver: zodResolver(registerSchema),
+    resolver: zodResolver(step === 1 ? step1Schema : 
+      step === 3 ? (accountType === "individual" ? step3IndividualSchema : step3CompanySchema) : 
+      z.object({})),
     defaultValues: {
       email: "",
       password: "",
       confirmPassword: "",
+      firstName: "",
+      lastName: "",
+      phone: "",
+      companyName: "",
+      taxId: "",
     },
+    mode: "onChange"
   });
 
-  const onSubmit = (values: RegisterFormValues) => {
-    if (step === 1) {
-      setStep(2);
-    } else if (step === 2) {
-      setStep(3);
-    } else {
-      toast.success("Inscription réussie ! Bienvenue sur PayeAfrique.");
-      console.log(values, accountType);
-      // Handle registration logic here
+  const onSubmit = async (values: RegisterFormValues) => {
+    try {
+      if (step === 1) {
+        // Valider uniquement les champs de l'étape 1
+        await step1Schema.parseAsync({
+          email: values.email,
+          password: values.password,
+          confirmPassword: values.confirmPassword,
+        });
+        setStep(2);
+      } else if (step === 2) {
+        setStep(3);
+      } else {
+        // Valider les champs de l'étape 3 selon le type de compte
+        if (accountType === "individual") {
+          await step3IndividualSchema.parseAsync({
+            firstName: values.firstName,
+            lastName: values.lastName,
+            phone: values.phone,
+          });
+        } else {
+          await step3CompanySchema.parseAsync({
+            companyName: values.companyName,
+            taxId: values.taxId,
+            phone: values.phone,
+          });
+        }
+
+        // Envoyer les données d'inscription
+        await register({
+          email: values.email,
+          password: values.password,
+          accountType,
+          firstName: values.firstName,
+          lastName: values.lastName,
+          phone: values.phone,
+          companyName: values.companyName,
+          taxId: values.taxId,
+        });
+        
+        toast.success("Inscription réussie ! Bienvenue sur PayeAfrique.");
+        navigate("/dashboard");
+      }
+    } catch (error: any) {
+      if (error instanceof z.ZodError) {
+        // Gérer les erreurs de validation Zod
+        error.errors.forEach((err) => {
+          toast.error(err.message);
+        });
+      } else {
+        toast.error(error.message);
+      }
     }
   };
 
@@ -78,6 +153,12 @@ const Register = () => {
               />
             ))}
           </div>
+
+          {error && (
+            <div className="p-4 bg-red-50 text-red-600 rounded-lg text-sm">
+              {error}
+            </div>
+          )}
 
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
@@ -166,34 +247,88 @@ const Register = () => {
                   {accountType === "individual" ? (
                     <div className="space-y-4">
                       <div className="grid grid-cols-2 gap-4">
-                        <div>
-                          <FormLabel>Prénom</FormLabel>
-                          <Input placeholder="Prénom" />
-                        </div>
-                        <div>
-                          <FormLabel>Nom</FormLabel>
-                          <Input placeholder="Nom" />
-                        </div>
+                        <FormField
+                          control={form.control}
+                          name="firstName"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Prénom</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Prénom" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <FormField
+                          control={form.control}
+                          name="lastName"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Nom</FormLabel>
+                              <FormControl>
+                                <Input placeholder="Nom" {...field} />
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
                       </div>
-                      <div>
-                        <FormLabel>Téléphone</FormLabel>
-                        <Input placeholder="+229 00000000" />
-                      </div>
+                      <FormField
+                        control={form.control}
+                        name="phone"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Téléphone</FormLabel>
+                            <FormControl>
+                              <Input placeholder="+229 00000000" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </div>
                   ) : (
                     <div className="space-y-4">
-                      <div>
-                        <FormLabel>Nom de l'entreprise</FormLabel>
-                        <Input placeholder="Nom de l'entreprise" />
-                      </div>
-                      <div>
-                        <FormLabel>Numéro d'identification fiscale</FormLabel>
-                        <Input placeholder="NIF" />
-                      </div>
-                      <div>
-                        <FormLabel>Téléphone</FormLabel>
-                        <Input placeholder="+229 00000000" />
-                      </div>
+                      <FormField
+                        control={form.control}
+                        name="companyName"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Nom de l'entreprise</FormLabel>
+                            <FormControl>
+                              <Input placeholder="Nom de l'entreprise" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="taxId"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Numéro d'identification fiscale</FormLabel>
+                            <FormControl>
+                              <Input placeholder="NIF" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
+                      <FormField
+                        control={form.control}
+                        name="phone"
+                        render={({ field }) => (
+                          <FormItem>
+                            <FormLabel>Téléphone</FormLabel>
+                            <FormControl>
+                              <Input placeholder="+229 00000000" {...field} />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
+                      />
                     </div>
                   )}
                 </div>
@@ -205,14 +340,24 @@ const Register = () => {
                     type="button"
                     variant="outline"
                     onClick={() => setStep(step - 1)}
+                    disabled={isLoading}
                   >
                     Retour
                   </Button>
                 ) : (
                   <div></div>
                 )}
-                <Button type="submit">
-                  {step === 3 ? "Terminer" : "Continuer"}
+                <Button type="submit" disabled={isLoading}>
+                  {isLoading ? (
+                    <div className="flex items-center">
+                      <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
+                      Chargement...
+                    </div>
+                  ) : step === 3 ? (
+                    "Terminer"
+                  ) : (
+                    "Continuer"
+                  )}
                 </Button>
               </div>
             </form>

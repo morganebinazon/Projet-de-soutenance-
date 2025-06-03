@@ -1,4 +1,3 @@
-
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -6,6 +5,9 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { ThemeProvider } from "@/hooks/use-theme";
 import { CountryProvider } from "@/hooks/use-country";
+
+// Importez votre composant Chatbot ici
+import Chatbot from "./components/Chatbot"; 
 
 import Index from "./pages/Index";
 import Simulation from "./pages/Simulation";
@@ -18,6 +20,11 @@ import CountrySelection from "./pages/CountrySelection";
 import EmployeeDashboard from "./pages/EmployeeDashboard";
 import EnterpriseDashboard from "./pages/EnterpriseDashboard";
 import NotFound from "./pages/NotFound";
+
+// Ajoutez les imports pour les pages About et Contact
+import About from "./pages/About";    // Assurez-vous que ce fichier existe
+import Contact from "./pages/Contact"; // Assurez-vous que ce fichier existe
+
 
 const queryClient = new QueryClient();
 
@@ -40,10 +47,17 @@ const App = () => (
               <Route path="/country-selection" element={<CountrySelection />} />
               <Route path="/employee-dashboard" element={<EmployeeDashboard />} />
               <Route path="/enterprise-dashboard" element={<EnterpriseDashboard />} />
+              
+              {/* NOUVELLES ROUTES AJOUTÉES POUR /about ET /contact */}
+              <Route path="/about" element={<About />} />
+              <Route path="/contact" element={<Contact />} />
+              
               {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
               <Route path="*" element={<NotFound />} />
             </Routes>
           </BrowserRouter>
+          {/* PLACEZ LE COMPOSANT CHATBOT ICI */}
+          <Chatbot />
         </TooltipProvider>
       </CountryProvider>
     </ThemeProvider>
