@@ -1,6 +1,24 @@
 // Constantes pour les calculs des frais professionnels
 export const FRAIS_PRO_RATE = 0.20; // 20% pour frais professionnels
 export const FRAIS_PRO_PLAFOND_MENSUEL = 84334; // Plafond mensuel exact pour le Togo
+export function calculateNetToBrutBenin(netSalary: number, familyStatus: string, childrenCount: number): number {
+  // Calcul du salaire brut à partir du net pour le Bénin
+  const cotisationsSociales = netSalary * BENIN.CNSS_SALARIAL;
+  const baseImposable = netSalary + cotisationsSociales;
+  const its = calculateITSBenin(baseImposable);
+  
+  return Math.round(netSalary + cotisationsSociales + its);
+}
+
+export function calculateNetToBrutTogo(netSalary: number, familyStatus: string, childrenCount: number): number {
+  // Calcul du salaire brut à partir du net pour le Togo
+  const cotisationsSociales = netSalary * TOGO.CNSS_SALARIAL.TOTAL;
+  const fraisPro = calculateFraisPro(netSalary, cotisationsSociales);
+  const baseImposable = netSalary + cotisationsSociales + fraisPro;
+  const irpp = calculateIRPPTogo(baseImposable);
+  
+  return Math.round(netSalary + cotisationsSociales + fraisPro + irpp);
+}
 
 // Constantes CNSS et AMU Togo 2024-2025
 export const TOGO = {
@@ -76,6 +94,10 @@ export const calculateFraisPro = (salaireBrut: number, cotisationsSociales: numb
   const fraisPro = baseCalculFrais * FRAIS_PRO_RATE;
   return Math.round(Math.min(fraisPro, FRAIS_PRO_PLAFOND_MENSUEL));
 };
+export function calculateChargesPatronalesBenin(salaireBrut: number): number {
+  const taux = 0.15;
+  return salaireBrut * taux;
+};
 
 // Fonction pour calculer les charges patronales au Togo
 export const calculateChargesPatronalesTogo = (salaireBrut: number) => {
@@ -136,4 +158,5 @@ export const calculateImpot = (
     const baseImposable = salaireBrut - cotisationsSociales - fraisPro;
     return calculateIRPPTogo(baseImposable);
   }
+  
 }; 

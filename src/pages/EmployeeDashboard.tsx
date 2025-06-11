@@ -1,6 +1,6 @@
-
 import React, { useState } from "react";
-import { useCountry } from "@/hooks/use-country";
+import { useCountry } from "@/hooks/use-country.tsx";
+import { useNavigate } from "react-router-dom";
 import Layout from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -43,8 +43,19 @@ import {
   Share2,
   Target,
   TrendingUp,
-  User as UserIcon
+  User as UserIcon,
+  Search,
+  Filter,
+  Plus,
+  Settings,
+  X,
+  Building,
+  FileSpreadsheet,
+  ChevronDown,
+  ChevronUp
 } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { toast } from "sonner";
 
 // Sample data for the dashboard
 const salaryHistoryData = [
@@ -76,13 +87,141 @@ const mockLeavesData = [
 
 const EmployeeDashboard = () => {
   const { country } = useCountry();
+  const navigate = useNavigate();
   const [salaryView, setSalaryView] = useState<string>("net");
   const currencySymbol = "FCFA";
+  const [showAllDocuments, setShowAllDocuments] = useState(false);
+  const [selectedDocument, setSelectedDocument] = useState<any>(null);
   
   // Format currency for display
   const formatCurrency = (value: number | string) => {
     const numValue = typeof value === 'string' ? parseInt(value.replace(/[^\d]/g, ''), 10) : value;
     return `${numValue.toLocaleString()} ${currencySymbol}`;
+  };
+
+  const handleDownloadPayslip = (payslip: any) => {
+    // Créer le contenu HTML du bulletin de paie
+    const htmlContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
+            .header { text-align: center; margin-bottom: 30px; }
+            .company-logo { max-width: 150px; margin-bottom: 10px; }
+            .title { font-size: 24px; color: #1a5f7a; margin-bottom: 5px; }
+            .subtitle { font-size: 18px; color: #666; }
+            .section { margin-bottom: 20px; }
+            .section-title { font-size: 16px; color: #1a5f7a; margin-bottom: 10px; border-bottom: 2px solid #1a5f7a; padding-bottom: 5px; }
+            .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+            .info-item { margin-bottom: 10px; }
+            .info-label { font-weight: bold; color: #666; }
+            .table { width: 100%; border-collapse: collapse; margin: 20px 0; }
+            .table th, .table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            .table th { background-color: #f5f5f5; }
+            .total { font-weight: bold; text-align: right; margin-top: 20px; }
+            .footer { margin-top: 40px; text-align: center; font-size: 12px; color: #666; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <div class="title">BULLETIN DE PAIE</div>
+            <div class="subtitle">${payslip.period}</div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Informations Employé</div>
+            <div class="info-grid">
+              <div class="info-item">
+                <div class="info-label">Nom</div>
+                <div>${payslip.employeeName}</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">Matricule</div>
+                <div>${payslip.employeeId}</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">Département</div>
+                <div>${payslip.department}</div>
+              </div>
+              <div class="info-item">
+                <div class="info-label">Poste</div>
+                <div>${payslip.position}</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="section">
+            <div class="section-title">Détails de la Paie</div>
+            <table class="table">
+              <tr>
+                <th>Description</th>
+                <th>Montant</th>
+              </tr>
+              <tr>
+                <td>Salaire de base</td>
+                <td>${payslip.baseSalary.toLocaleString('fr-FR')} FCFA</td>
+              </tr>
+              <tr>
+                <td>Prime de transport</td>
+                <td>${payslip.transportAllowance.toLocaleString('fr-FR')} FCFA</td>
+              </tr>
+              <tr>
+                <td>Prime de logement</td>
+                <td>${payslip.housingAllowance.toLocaleString('fr-FR')} FCFA</td>
+              </tr>
+              <tr>
+                <td>Autres primes</td>
+                <td>${payslip.otherAllowances.toLocaleString('fr-FR')} FCFA</td>
+              </tr>
+              <tr>
+                <td>Total brut</td>
+                <td>${payslip.grossSalary.toLocaleString('fr-FR')} FCFA</td>
+              </tr>
+            </table>
+
+            <table class="table">
+              <tr>
+                <th>Déductions</th>
+                <th>Montant</th>
+              </tr>
+              <tr>
+                <td>CNSS</td>
+                <td>${payslip.cnss.toLocaleString('fr-FR')} FCFA</td>
+              </tr>
+              <tr>
+                <td>Impôt sur le revenu</td>
+                <td>${payslip.incomeTax.toLocaleString('fr-FR')} FCFA</td>
+              </tr>
+              <tr>
+                <td>Autres déductions</td>
+                <td>${payslip.otherDeductions.toLocaleString('fr-FR')} FCFA</td>
+              </tr>
+            </table>
+
+            <div class="total">
+              Net à payer: ${payslip.netSalary.toLocaleString('fr-FR')} FCFA
+            </div>
+          </div>
+
+          <div class="footer">
+            <p>Ce document est généré automatiquement par PayeAfrique</p>
+            <p>Date d'émission: ${new Date().toLocaleDateString('fr-FR')}</p>
+          </div>
+        </body>
+      </html>
+    `;
+
+    // Créer un Blob avec le contenu HTML
+    const blob = new Blob([htmlContent], { type: 'text/html' });
+    const url = window.URL.createObjectURL(blob);
+
+    // Ouvrir le bulletin dans un nouvel onglet
+    window.open(url, '_blank');
+  };
+
+  const handleViewAllDocuments = () => {
+    setShowAllDocuments(true);
   };
 
   return (
@@ -107,7 +246,7 @@ const EmployeeDashboard = () => {
               <div className="font-medium">2 ans et 4 mois</div>
             </div>
             
-            <Button className="w-full mt-4">
+            <Button className="w-full mt-4" onClick={() => navigate('/simulation/employee')}>
               <Calculator className="mr-2 h-4 w-4" />
               Simuler mon salaire
             </Button>
@@ -220,30 +359,37 @@ const EmployeeDashboard = () => {
           {/* Recent Documents */}
           <Card>
             <CardHeader>
-              <CardTitle>Documents récents</CardTitle>
+              <div className="flex justify-between items-center">
+                <div>
+                  <CardTitle>Documents Récents</CardTitle>
+                  <CardDescription>
+                    Vos derniers bulletins de paie et documents importants
+                  </CardDescription>
+                </div>
+                <Button variant="outline" onClick={handleViewAllDocuments}>
+                  <FileText className="mr-2 h-4 w-4" />
+                  Tous mes documents
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
-              <div className="space-y-2">
+              <div className="space-y-4">
                 {mockDocuments.map((doc, index) => (
-                  <div key={index} className="flex items-center justify-between p-2 hover:bg-gray-50 dark:hover:bg-gray-800 rounded-md transition-colors">
-                    <div className="flex items-center">
-                      <FileText className="h-5 w-5 mr-3 text-blue-500" />
+                  <div key={index} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                    <div className="flex items-center space-x-4">
+                      <FileText className="h-8 w-8 text-benin-green" />
                       <div>
-                        <div className="font-medium">{doc.name}</div>
-                        <div className="text-xs text-muted-foreground">Émis le {doc.date}</div>
+                        <h4 className="font-medium">{doc.name}</h4>
+                        <p className="text-sm text-gray-500">{doc.date}</p>
                       </div>
                     </div>
-                    <Button variant="ghost" size="sm">
-                      <Download className="h-4 w-4" />
+                    <Button variant="outline" size="sm" onClick={() => handleDownloadPayslip(doc)}>
+                      <Download className="mr-2 h-4 w-4" />
+                      Télécharger
                     </Button>
                   </div>
                 ))}
               </div>
-              
-              <Button variant="outline" className="w-full mt-4">
-                <FolderOpen className="mr-2 h-4 w-4" />
-                Tous mes documents
-              </Button>
             </CardContent>
           </Card>
           
@@ -812,6 +958,58 @@ const EmployeeDashboard = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Modal Tous les documents */}
+      <Dialog open={showAllDocuments} onOpenChange={setShowAllDocuments}>
+        <DialogContent className="max-w-4xl">
+          <DialogHeader>
+            <DialogTitle>Tous mes documents</DialogTitle>
+            <DialogDescription>
+              Consultez et téléchargez tous vos documents
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4">
+            <Tabs defaultValue="payslips">
+              <TabsList>
+                <TabsTrigger value="payslips">Bulletins de paie</TabsTrigger>
+                <TabsTrigger value="contracts">Contrats</TabsTrigger>
+                <TabsTrigger value="certificates">Attestations</TabsTrigger>
+              </TabsList>
+              <TabsContent value="payslips">
+                <div className="space-y-4">
+                  {mockDocuments.map((doc) => (
+                    <div key={doc.name} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                      <div className="flex items-center space-x-4">
+                        <FileSpreadsheet className="h-8 w-8 text-benin-green" />
+                        <div>
+                          <h4 className="font-medium">{doc.name}</h4>
+                          <p className="text-sm text-gray-500">{doc.date}</p>
+                        </div>
+                      </div>
+                      <Button variant="outline" size="sm" onClick={() => handleDownloadPayslip(doc)}>
+                        <Download className="mr-2 h-4 w-4" />
+                        Télécharger
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </TabsContent>
+              <TabsContent value="contracts">
+                <div className="text-center py-8">
+                  <FileText className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                  <p className="text-gray-500">Aucun contrat disponible</p>
+                </div>
+              </TabsContent>
+              <TabsContent value="certificates">
+                <div className="text-center py-8">
+                  <FileText className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+                  <p className="text-gray-500">Aucune attestation disponible</p>
+                </div>
+              </TabsContent>
+            </Tabs>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 };

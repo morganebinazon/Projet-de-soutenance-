@@ -1,13 +1,6 @@
-
-import React, { createContext, useContext, useState, useEffect } from "react";
+import { createContext, useContext, useState, ReactNode } from 'react';
 
 export type CountryId = "benin" | "togo";
-
-interface CountryProviderProps {
-  children: React.ReactNode;
-  defaultCountry?: CountryId;
-  storageKey?: string;
-}
 
 interface CountryContextType {
   country: CountryId;
@@ -16,44 +9,35 @@ interface CountryContextType {
 
 const CountryContext = createContext<CountryContextType | undefined>(undefined);
 
-export function CountryProvider({
-  children,
-  defaultCountry = "benin",
-  storageKey = "paye-afrique-country",
-}: CountryProviderProps) {
-  const [country, setCountryState] = useState<CountryId>(
-    () => {
-      const savedCountry = localStorage.getItem(storageKey);
+export const CountryProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
+  const [country, setCountryState] = useState<CountryId>(() => {
+    if (typeof window !== 'undefined') {
+      const savedCountry = localStorage.getItem("paye-afrique-country");
       return (savedCountry === "benin" || savedCountry === "togo") 
         ? savedCountry as CountryId 
-        : defaultCountry;
+        : "benin";
     }
-  );
+    return "benin";
+  });
 
   const setCountry = (newCountry: CountryId) => {
-    localStorage.setItem(storageKey, newCountry);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem("paye-afrique-country", newCountry);
+    }
     setCountryState(newCountry);
   };
-
-  useEffect(() => {
-    // You could perform additional actions when country changes
-    // For example, loading country-specific data or settings
-    console.log(`Country changed to: ${country}`);
-  }, [country]);
 
   return (
     <CountryContext.Provider value={{ country, setCountry }}>
       {children}
     </CountryContext.Provider>
   );
-}
+};
 
-export function useCountry() {
+export const useCountry = () => {
   const context = useContext(CountryContext);
-  
   if (context === undefined) {
     throw new Error("useCountry must be used within a CountryProvider");
   }
-  
   return context;
-}
+};

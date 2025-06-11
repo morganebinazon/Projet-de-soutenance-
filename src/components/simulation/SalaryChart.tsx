@@ -100,6 +100,7 @@ const SalaryChart: React.FC<SalaryChartProps> = ({ results }) => {
         />
       </PieChart>
     </ResponsiveContainer>
+    
   );
 };
 

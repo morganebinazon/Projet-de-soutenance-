@@ -1,4 +1,3 @@
-
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import { 
@@ -12,7 +11,7 @@ import {
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { ExternalLink, Flag } from "lucide-react";
-import { useCountry } from "@/hooks/use-country";
+import { useCountry } from "@/hooks/use-country.tsx";
 import { toast } from "sonner";
 import { useCountryComparison } from "@/hooks/use-country-comparison";
 

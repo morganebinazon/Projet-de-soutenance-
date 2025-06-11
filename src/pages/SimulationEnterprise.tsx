@@ -1,7 +1,6 @@
-
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Calculator, Download, Plus, Trash2, Users, Building, PieChart, BarChart2, HelpCircle } from "lucide-react";
+import { ArrowLeft, Calculator, Download, Plus, Trash2, Users, Building, PieChart, BarChart2, HelpCircle, Filter, Search } from "lucide-react";
 import Layout from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -13,10 +12,14 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useCountry } from "@/hooks/use-country";
+import { useCountry } from "@/hooks/use-country.tsx";
 import { Eye } from "lucide-react";
-import { FaEye } from "react-icons/fa";
-
+import { SalaryDistributionChart, DepartmentChart, MonthlyEvolutionChart, BudgetProjectionChart } from "@/components/simulation/EnterpriseCharts";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { toast } from "sonner";
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+import { Loader2 } from "lucide-react";
 
 interface Employee {
   id: string;
@@ -31,23 +34,41 @@ interface Employee {
   };
 }
 
-// Mock chart components (would use recharts in real implementation)
-const MockPieChart = ({ children }: { children?: React.ReactNode }) => (
-  <div className="bg-gray-100 dark:bg-gray-800 h-full rounded-lg flex items-center justify-center">
-    <div className="text-center text-sm text-muted-foreground">Graphique de répartition</div>
-  </div>
-);
-
-const MockBarChart = ({ data }: { data?: any[] }) => (
-  <div className="bg-gray-100 dark:bg-gray-800 h-full rounded-lg flex items-center justify-center">
-    <div className="text-center text-sm text-muted-foreground">Graphique d'analyse</div>
-  </div>
-);
+interface MonthlyData {
+  month: number;
+  projectedSalary: number;
+  employeeCount: number;
+}
 
 const SimulationEnterprise = () => {
   const navigate = useNavigate();
   const { country } = useCountry();
+  const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState("overview");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+  const [showAddEmployeeModal, setShowAddEmployeeModal] = useState(false);
+  const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([]);
+  const [newEmployee, setNewEmployee] = useState({
+    name: "",
+    department: "",
+    position: "",
+    salary: 0,
+    status: "active"
+  });
+  const [filters, setFilters] = useState({
+    department: "all",
+    minSalary: 0,
+    maxSalary: 2000000
+  });
+  const [showAdvancedSimulationModal, setShowAdvancedSimulationModal] = useState(false);
+  const [advancedSimulationParams, setAdvancedSimulationParams] = useState({
+    period: "12",
+    growthRate: "5",
+    inflationRate: "2",
+    includeBenefits: true
+  });
+  
   const [employees, setEmployees] = useState<Employee[]>([
     {
       id: "1",
@@ -93,6 +114,19 @@ const SimulationEnterprise = () => {
       }
     }
   ]);
+
+  // Filter employees based on search term and filters
+  const filteredEmployees = employees.filter(employee => {
+    const matchesSearch = 
+      employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      employee.position.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      employee.department.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesDepartment = filters.department === "all" || employee.department === filters.department;
+    const matchesSalary = employee.grossSalary >= filters.minSalary && employee.grossSalary <= filters.maxSalary;
+    
+    return matchesSearch && matchesDepartment && matchesSalary;
+  });
 
   // Calculate total payroll stats
   const calculateStats = () => {
@@ -150,6 +184,164 @@ const SimulationEnterprise = () => {
       maximumFractionDigits: 0
     }).format(value);
   };
+
+  const handleAddEmployee = () => {
+    const employee: Employee = {
+      id: (employees.length + 1).toString(),
+      name: newEmployee.name,
+      department: newEmployee.department,
+      position: newEmployee.position,
+      grossSalary: newEmployee.salary,
+      benefits: {}
+    };
+    
+    setEmployees(prev => [...prev, employee]);
+    setShowAddEmployeeModal(false);
+    setNewEmployee({
+      name: "",
+      department: "",
+      position: "",
+      salary: 0,
+      status: "active"
+    });
+  };
+
+  // Add useEffect for loading simulation
+  useEffect(() => {
+    const loadSimulation = async () => {
+      try {
+        // Simulate loading time
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        setIsLoading(false);
+      } catch (error) {
+        console.error("Error loading simulation:", error);
+        setIsLoading(false);
+      }
+    };
+
+    loadSimulation();
+  }, []);
+
+  const handleDownloadReport = () => {
+    const doc = new jsPDF();
+    
+    // Add title
+    doc.setFontSize(20);
+    doc.text("Rapport de Simulation Entreprise", 20, 20);
+    
+    // Add date
+    doc.setFontSize(12);
+    doc.text(`Date: ${new Date().toLocaleDateString()}`, 20, 30);
+    
+    // Add general stats
+    doc.setFontSize(16);
+    doc.text("Statistiques Générales", 20, 45);
+    doc.setFontSize(12);
+    doc.text(`Nombre total d'employés: ${employees.length}`, 20, 55);
+    doc.text(`Masse salariale totale: ${formatCurrency(stats.totalGrossSalary)}`, 20, 65);
+    doc.text(`Salaire moyen: ${formatCurrency(stats.totalGrossSalary / stats.employeeCount)}`, 20, 75);
+    
+    // Add department distribution
+    doc.setFontSize(16);
+    doc.text("Répartition par Département", 20, 95);
+    doc.setFontSize(12);
+    
+    let yPos = 105;
+    const departmentCounts = employees.reduce((acc, emp) => {
+      acc[emp.department] = (acc[emp.department] || 0) + 1;
+      return acc;
+    }, {} as Record<string, number>);
+
+    Object.entries(departmentCounts).forEach(([dept, count]) => {
+      doc.text(`${dept}: ${count} employés`, 20, yPos);
+      yPos += 10;
+    });
+    
+    // Add employee list
+    doc.setFontSize(16);
+    doc.text("Liste des Employés", 20, yPos + 10);
+    doc.setFontSize(12);
+    
+    const employeeData = employees.map(emp => [
+      emp.name,
+      emp.department,
+      emp.position,
+      formatCurrency(emp.grossSalary)
+    ]);
+    
+    doc.autoTable({
+      startY: yPos + 20,
+      head: [['Nom', 'Département', 'Poste', 'Salaire']],
+      body: employeeData
+    });
+    
+    // Add monthly projections if available
+    if (monthlyData.length > 0) {
+      const lastY = (doc as any).lastAutoTable.finalY || yPos + 20;
+      doc.setFontSize(16);
+      doc.text("Projections Salariales", 20, lastY + 20);
+      doc.setFontSize(12);
+      
+      const projectionData = monthlyData.map(data => [
+        `Mois ${data.month}`,
+        formatCurrency(data.projectedSalary),
+        data.employeeCount.toString()
+      ]);
+      
+      doc.autoTable({
+        startY: lastY + 30,
+        head: [['Période', 'Salaire Projeté', 'Nombre d\'employés']],
+        body: projectionData
+      });
+    }
+    
+    // Save the PDF
+    doc.save('rapport-simulation-entreprise.pdf');
+    toast.success("Rapport généré avec succès");
+  };
+
+  const handleAdvancedSimulation = () => {
+    // Calculer les projections
+    const months = parseInt(advancedSimulationParams.period);
+    const growthRate = parseFloat(advancedSimulationParams.growthRate) / 100;
+    const inflationRate = parseFloat(advancedSimulationParams.inflationRate) / 100;
+
+    const projections = Array.from({ length: months }, (_, i) => {
+      const month = i + 1;
+      const salaryGrowth = Math.pow(1 + growthRate, month);
+      const inflationAdjustment = Math.pow(1 + inflationRate, month);
+      
+      const projectedSalary = employees.reduce((sum, emp) => {
+        const baseSalary = emp.grossSalary;
+        const adjustedSalary = baseSalary * salaryGrowth * inflationAdjustment;
+        return sum + adjustedSalary;
+      }, 0);
+
+      return {
+        month,
+        projectedSalary,
+        employeeCount: employees.length
+      };
+    });
+
+    // Mettre à jour les données pour les graphiques
+    setMonthlyData(projections);
+    setShowAdvancedSimulationModal(false);
+    toast.success("Simulation avancée lancée avec succès");
+  };
+
+  if (isLoading) {
+    return (
+      <Layout>
+        <div className="flex items-center justify-center min-h-screen">
+          <div className="flex flex-col items-center space-y-4">
+            <Loader2 className="h-8 w-8 animate-spin text-benin-green" />
+            <p className="text-lg font-medium">Chargement de la simulation...</p>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
@@ -272,7 +464,12 @@ const SimulationEnterprise = () => {
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="h-72">
-                      <MockPieChart />
+                      <SalaryDistributionChart data={[
+                        { name: "Salaires bruts", value: stats.totalGrossSalary },
+                        { name: "Cotisations sociales", value: stats.totalGrossSalary * 0.0968 },
+                        { name: "Charges patronales", value: stats.totalGrossSalary * 0.225 },
+                        { name: "Primes et avantages", value: stats.totalGrossSalary * 0.1 }
+                      ]} />
                     </div>
                     <div className="space-y-4">
                       <h3 className="text-lg font-medium">Analyse des coûts</h3>
@@ -344,7 +541,11 @@ const SimulationEnterprise = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="h-64">
-                    <MockBarChart />
+                    <DepartmentChart data={[
+                      { name: "Technique", salary: 1400000, employees: 2 },
+                      { name: "Commercial", salary: 650000, employees: 1 },
+                      { name: "Ressources Humaines", salary: 380000, employees: 1 }
+                    ]} />
                   </div>
                   
                   <div className="mt-4 space-y-2">
@@ -382,7 +583,14 @@ const SimulationEnterprise = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="h-64">
-                    <MockBarChart />
+                    <MonthlyEvolutionChart data={[
+                      { month: "Déc", salary: 2000000, employees: 3 },
+                      { month: "Jan", salary: 2100000, employees: 3 },
+                      { month: "Fév", salary: 2150000, employees: 3 },
+                      { month: "Mar", salary: 2200000, employees: 4 },
+                      { month: "Avr", salary: 2300000, employees: 4 },
+                      { month: "Mai", salary: 2430000, employees: 4 }
+                    ]} />
                   </div>
                   
                   <div className="mt-4">
@@ -408,11 +616,11 @@ const SimulationEnterprise = () => {
             </div>
             
             <div className="flex justify-end space-x-4">
-              <Button variant="outline">
+              <Button variant="outline" onClick={handleDownloadReport}>
                 <Download className="mr-2 h-4 w-4" />
                 Télécharger rapport
               </Button>
-              <Button>
+              <Button onClick={() => setShowAdvancedSimulationModal(true)}>
                 <Calculator className="mr-2 h-4 w-4" />
                 Lancer simulation avancée
               </Button>
@@ -423,7 +631,10 @@ const SimulationEnterprise = () => {
           <TabsContent value="employees" className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold">Gestion des employés</h2>
-              <Button>
+              <Button 
+                size="sm"
+                onClick={() => setShowAddEmployeeModal(true)}
+              >
                 <Plus className="mr-2 h-4 w-4" />
                 Ajouter un employé
               </Button>
@@ -440,19 +651,75 @@ const SimulationEnterprise = () => {
                   </div>
                   
                   <div className="flex gap-2">
-                    <Input 
-                      placeholder="Rechercher..." 
-                      className="w-64"
-                    />
-                    <Button variant="outline">Filtrer</Button>
+                    <div className="relative">
+                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                      <Input 
+                        type="text" 
+                        placeholder="Rechercher..." 
+                        className="pl-8 h-9"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
+                      />
+                    </div>
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => setShowFilters(!showFilters)}
+                    >
+                      <Filter className="mr-2 h-4 w-4" />
+                      Filtres
+                    </Button>
                   </div>
                 </div>
               </CardHeader>
+              
+              {showFilters && (
+                <div className="px-6 pb-4 space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <Label>Département</Label>
+                      <Select 
+                        value={filters.department} 
+                        onValueChange={(value) => setFilters(prev => ({ ...prev, department: value }))}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Tous les départements" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Tous les départements</SelectItem>
+                          <SelectItem value="Technique">Technique</SelectItem>
+                          <SelectItem value="Commercial">Commercial</SelectItem>
+                          <SelectItem value="Ressources Humaines">Ressources Humaines</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    
+                    <div>
+                      <Label>Salaire minimum</Label>
+                      <Input 
+                        type="number"
+                        value={filters.minSalary}
+                        onChange={(e) => setFilters(prev => ({ ...prev, minSalary: Number(e.target.value) }))}
+                      />
+                    </div>
+                    
+                    <div>
+                      <Label>Salaire maximum</Label>
+                      <Input 
+                        type="number"
+                        value={filters.maxSalary}
+                        onChange={(e) => setFilters(prev => ({ ...prev, maxSalary: Number(e.target.value) }))}
+                      />
+                    </div>
+                  </div>
+                </div>
+              )}
+              
               <CardContent>
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Employé</TableHead>
+                      <TableHead>Nom</TableHead>
                       <TableHead>Département</TableHead>
                       <TableHead>Poste</TableHead>
                       <TableHead className="text-right">Salaire brut</TableHead>
@@ -462,11 +729,13 @@ const SimulationEnterprise = () => {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {employees.map(employee => {
-                      const totalBenefits = (employee.benefits.transport || 0) + 
-                                           (employee.benefits.housing || 0) + 
-                                           (employee.benefits.performance || 0);
-                      const employerCost = employee.grossSalary * 1.154 + totalBenefits;
+                    {filteredEmployees.map(employee => {
+                      const totalBenefits = 
+                        (employee.benefits.transport || 0) +
+                        (employee.benefits.housing || 0) +
+                        (employee.benefits.performance || 0);
+                      
+                      const employerCost = employee.grossSalary + totalBenefits;
                       
                       return (
                         <TableRow key={employee.id}>
@@ -492,16 +761,11 @@ const SimulationEnterprise = () => {
                             </div>
                           </TableCell>
                         </TableRow>
-                      )
+                      );
                     })}
                   </TableBody>
                 </Table>
               </CardContent>
-              <CardFooter className="flex justify-between">
-                <div className="text-sm text-muted-foreground">
-                  Affichage de {employees.length} employés sur {employees.length}
-                </div>
-              </CardFooter>
             </Card>
             
             <Card>
@@ -637,7 +901,11 @@ const SimulationEnterprise = () => {
               </CardHeader>
               <CardContent>
                 <div className="h-72">
-                  <MockBarChart />
+                  <DepartmentChart data={[
+                    { name: "Technique", salary: 1400000, employees: 2 },
+                    { name: "Commercial", salary: 650000, employees: 1 },
+                    { name: "Ressources Humaines", salary: 380000, employees: 1 }
+                  ]} />
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
@@ -969,7 +1237,20 @@ const SimulationEnterprise = () => {
                 </div>
                 
                 <div className="h-72">
-                  <MockBarChart />
+                  <BudgetProjectionChart data={[
+                    { month: "Mai 2025", salary: 2430000, employees: 4 },
+                    { month: "Juin 2025", salary: 2500000, employees: 4 },
+                    { month: "Juil 2025", salary: 2600000, employees: 5 },
+                    { month: "Août 2025", salary: 2700000, employees: 5 },
+                    { month: "Sept 2025", salary: 2800000, employees: 5 },
+                    { month: "Oct 2025", salary: 2900000, employees: 6 },
+                    { month: "Nov 2025", salary: 3000000, employees: 6 },
+                    { month: "Déc 2025", salary: 3100000, employees: 6 },
+                    { month: "Jan 2026", salary: 3200000, employees: 6 },
+                    { month: "Fév 2026", salary: 3300000, employees: 6 },
+                    { month: "Mar 2026", salary: 3400000, employees: 6 },
+                    { month: "Avr 2026", salary: 3500000, employees: 6 }
+                  ]} />
                 </div>
                 
                 <div className="space-y-4">
@@ -1039,6 +1320,160 @@ const SimulationEnterprise = () => {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Modal d'ajout d'employé */}
+      <Dialog open={showAddEmployeeModal} onOpenChange={setShowAddEmployeeModal}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Ajouter un nouvel employé</DialogTitle>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="name" className="text-right">
+                Nom
+              </Label>
+              <Input
+                id="name"
+                value={newEmployee.name}
+                onChange={(e) => setNewEmployee(prev => ({ ...prev, name: e.target.value }))}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="department" className="text-right">
+                Département
+              </Label>
+              <Select
+                value={newEmployee.department}
+                onValueChange={(value) => setNewEmployee(prev => ({ ...prev, department: value }))}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Sélectionner un département" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Technique">Technique</SelectItem>
+                  <SelectItem value="Commercial">Commercial</SelectItem>
+                  <SelectItem value="Administratif">Administratif</SelectItem>
+                  <SelectItem value="Direction">Direction</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="position" className="text-right">
+                Poste
+              </Label>
+              <Input
+                id="position"
+                value={newEmployee.position}
+                onChange={(e) => setNewEmployee(prev => ({ ...prev, position: e.target.value }))}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="salary" className="text-right">
+                Salaire
+              </Label>
+              <Input
+                id="salary"
+                type="number"
+                value={newEmployee.salary}
+                onChange={(e) => setNewEmployee(prev => ({ ...prev, salary: Number(e.target.value) }))}
+                className="col-span-3"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddEmployeeModal(false)}>
+              Annuler
+            </Button>
+            <Button onClick={handleAddEmployee}>
+              Ajouter
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de simulation avancée */}
+      <Dialog open={showAdvancedSimulationModal} onOpenChange={setShowAdvancedSimulationModal}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Simulation avancée</DialogTitle>
+            <DialogDescription>
+              Configurez les paramètres de la simulation pour projeter l'évolution des salaires
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="period" className="text-right">
+                Période (mois)
+              </Label>
+              <Select
+                value={advancedSimulationParams.period}
+                onValueChange={(value) => setAdvancedSimulationParams(prev => ({ ...prev, period: value }))}
+              >
+                <SelectTrigger className="col-span-3">
+                  <SelectValue placeholder="Sélectionner la période" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="6">6 mois</SelectItem>
+                  <SelectItem value="12">12 mois</SelectItem>
+                  <SelectItem value="24">24 mois</SelectItem>
+                  <SelectItem value="36">36 mois</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="growthRate" className="text-right">
+                Taux de croissance (%)
+              </Label>
+              <Input
+                id="growthRate"
+                type="number"
+                value={advancedSimulationParams.growthRate}
+                onChange={(e) => setAdvancedSimulationParams(prev => ({ ...prev, growthRate: e.target.value }))}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="inflationRate" className="text-right">
+                Taux d'inflation (%)
+              </Label>
+              <Input
+                id="inflationRate"
+                type="number"
+                value={advancedSimulationParams.inflationRate}
+                onChange={(e) => setAdvancedSimulationParams(prev => ({ ...prev, inflationRate: e.target.value }))}
+                className="col-span-3"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="includeBenefits" className="text-right">
+                Inclure avantages
+              </Label>
+              <div className="col-span-3">
+                <input
+                  type="checkbox"
+                  id="includeBenefits"
+                  checked={advancedSimulationParams.includeBenefits}
+                  onChange={(e) => setAdvancedSimulationParams(prev => ({ ...prev, includeBenefits: e.target.checked }))}
+                  className="mr-2"
+                />
+                <Label htmlFor="includeBenefits" className="text-sm">
+                  Inclure les avantages sociaux dans la simulation
+                </Label>
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAdvancedSimulationModal(false)}>
+              Annuler
+            </Button>
+            <Button onClick={handleAdvancedSimulation}>
+              Lancer la simulation
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 };

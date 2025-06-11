@@ -12,7 +12,7 @@ import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
-import { useCountry } from "@/hooks/use-country";
+import { useCountry } from "@/hooks/use-country.tsx";
 
 // Mock chart components (would use recharts in real implementation)
 const PieChart = ({ children }: { children: React.ReactNode }) => (
@@ -127,33 +127,19 @@ const SimulationEmployee = () => {
                         <div className="space-y-2">
                           <div className="flex justify-between">
                             <Label htmlFor="gross-salary">Montant</Label>
-                            <span className="font-medium text-benin-green">{formatCurrency(grossSalary)}</span>
+                            <Label htmlFor="net-salary">Montant net souhaité</Label>
+                            <span className="font-medium text-benin-green">{formatCurrency(Number(netSalary))}</span>
                           </div>
                           
-                          <Slider
-                            id="gross-salary"
-                            value={[grossSalary]}
-                            min={50000}
-                            max={2000000}
-                            step={10000}
-                            onValueChange={handleSliderChange}
-                            className="my-4"
-                          />
-                          
-                          <div className="flex justify-between text-xs text-muted-foreground">
-                            <span>SMIG (52K)</span>
-                            <span>Moyen (250K)</span>
-                            <span>Élevé (1M)</span>
-                          </div>
-                          
-                          <div className="flex items-center mt-2">
+                          <div className="flex items-center">
                             <Input
+                              id="net-salary"
                               type="number"
-                              className="w-32 mr-2"
-                              value={grossSalary}
-                              onChange={(e) => setGrossSalary(Number(e.target.value))}
+                              className="w-full"
+                              value={netSalary}
+                              onChange={(e) => setNetSalary(e.target.value)}
                             />
-                            <span className="text-sm text-muted-foreground">FCFA / mois</span>
+                            <span className="ml-2 text-sm text-muted-foreground whitespace-nowrap">FCFA / mois</span>
                           </div>
                         </div>
                       </div>

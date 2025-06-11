@@ -19,7 +19,7 @@ const CountrySelector = () => {
   }, [country]);
 
   const handleCountryChange = (newCountry: string) => {
-    setCountry(newCountry);
+    setCountry(newCountry as "benin" | "togo");
     navigate(0);
   };
 

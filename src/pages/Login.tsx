@@ -1,4 +1,3 @@
-
 import { Link } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -15,7 +14,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { useCountry } from "@/hooks/use-country";
+import { useCountry } from "@/hooks/use-country.tsx";
 
 const loginSchema = z.object({
   email: z.string().email("Email invalide"),

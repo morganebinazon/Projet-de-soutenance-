@@ -1,16 +1,16 @@
-
 import { useState } from "react";
-import { Search, Book, FileText, Filter, ChevronLeft, ChevronRight, Download } from "lucide-react";
+import { Search, Book, FileText, Filter, ChevronLeft, ChevronRight, Download, Plus, Settings } from "lucide-react";
 import Layout from "@/components/layout/Layout";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Card, CardContent } from "@/components/ui/card";
+import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { useCountry } from "@/hooks/use-country";
+import { useCountry } from "@/hooks/use-country.tsx";
 import { Carousel, CarouselContent, CarouselItem, CarouselNext, CarouselPrevious } from "@/components/ui/carousel";
+import { Label } from "@/components/ui/label";
 
 interface Resource {
   id: string;
@@ -23,6 +23,8 @@ interface Resource {
   date: string;
   image?: string;
   featured?: boolean;
+  status: string;
+  cost: number;
 }
 
 const resourcesData: Resource[] = [
@@ -36,6 +38,8 @@ const resourcesData: Resource[] = [
     type: "article",
     date: "2025-04-15",
     featured: true,
+    status: "Actif",
+    cost: 0,
   },
   {
     id: "2",
@@ -46,6 +50,8 @@ const resourcesData: Resource[] = [
     country: ["togo"],
     type: "document",
     date: "2025-03-22",
+    status: "Actif",
+    cost: 0,
   },
   {
     id: "3",
@@ -57,6 +63,8 @@ const resourcesData: Resource[] = [
     type: "article",
     date: "2025-02-10",
     featured: true,
+    status: "Actif",
+    cost: 0,
   },
   {
     id: "4",
@@ -67,6 +75,8 @@ const resourcesData: Resource[] = [
     country: ["benin"],
     type: "video",
     date: "2025-01-18",
+    status: "Actif",
+    cost: 0,
   },
   {
     id: "5",
@@ -77,6 +87,8 @@ const resourcesData: Resource[] = [
     country: ["togo"],
     type: "document",
     date: "2024-12-05",
+    status: "Actif",
+    cost: 0,
   },
   {
     id: "6",
@@ -88,6 +100,8 @@ const resourcesData: Resource[] = [
     type: "article",
     date: "2025-05-01",
     featured: true,
+    status: "Actif",
+    cost: 0,
   },
   {
     id: "7",
@@ -98,6 +112,8 @@ const resourcesData: Resource[] = [
     country: ["togo"],
     type: "webinar",
     date: "2025-02-28",
+    status: "Actif",
+    cost: 0,
   },
   {
     id: "8",
@@ -108,6 +124,8 @@ const resourcesData: Resource[] = [
     country: ["benin", "togo"],
     type: "calculator",
     date: "2025-01-10",
+    status: "Actif",
+    cost: 0,
   },
   {
     id: "9",
@@ -118,6 +136,8 @@ const resourcesData: Resource[] = [
     country: ["benin"],
     type: "document",
     date: "2024-11-15",
+    status: "Actif",
+    cost: 0,
   },
 ];
 
@@ -321,6 +341,13 @@ const Resources = () => {
   const [selectedCategory, setSelectedCategory] = useState("all");
   const [selectedTab, setSelectedTab] = useState<string>(country);
   const [selectedType, setSelectedType] = useState("all-types");
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState({
+    type: "all",
+    status: "all",
+    minCost: 0,
+    maxCost: 1000000
+  });
 
   const featuredResources = resourcesData.filter(resource => resource.featured);
 
@@ -342,7 +369,13 @@ const Resources = () => {
       resource.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
       resource.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase()));
     
-    return countryMatch && categoryMatch && searchMatch && typeMatch;
+    // Filter by status
+    const statusMatch = filters.status === "all" || resource.status === filters.status;
+    
+    // Filter by cost
+    const costMatch = resource.cost >= filters.minCost && resource.cost <= filters.maxCost;
+    
+    return countryMatch && categoryMatch && searchMatch && typeMatch && statusMatch && costMatch;
   });
 
   return (

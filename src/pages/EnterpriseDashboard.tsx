@@ -1,6 +1,5 @@
-
 import React, { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import Layout from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -11,10 +10,12 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { Calendar, ChartPie, FileText, Users, Search, Plus, Filter, TrendingUp, ArrowUpDown, Building, Briefcase, 
-  ChevronDown, ChevronUp, BarChart, ArrowRight, FileSpreadsheet, Settings } from "lucide-react";
-import { useCountry } from "@/hooks/use-country";
+  ChevronDown, ChevronUp, BarChart, ArrowRight, FileSpreadsheet, Settings, Calculator, X } from "lucide-react";
+import { useCountry } from "@/hooks/use-country.tsx";
 import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell, Legend, LineChart, Line, Tooltip } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { toast } from "sonner";
 
 // Mock data
 const mockDepartmentData = [
@@ -70,8 +71,23 @@ const pieChartData = mockDepartmentData.map(item => ({
 
 const EnterpriseDashboard = () => {
   const { country } = useCountry();
+  const navigate = useNavigate();
   const currencySymbol = country === "benin" ? "FCFA" : "FCFA";
   const [selectedPeriod, setSelectedPeriod] = useState("month");
+  const [searchTerm, setSearchTerm] = useState("");
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState({
+    department: "all",
+    minSalary: 0,
+    maxSalary: 2000000
+  });
+  const [showAddDepartmentModal, setShowAddDepartmentModal] = useState(false);
+  const [newDepartment, setNewDepartment] = useState({
+    name: "",
+    description: "",
+    budget: 0,
+    manager: ""
+  });
   
   const totalEmployees = mockDepartmentData.reduce((acc, dept) => acc + dept.employees, 0);
   const totalMassSalary = mockDepartmentData.reduce((acc, dept) => acc + dept.totalSalary, 0);
@@ -80,48 +96,78 @@ const EnterpriseDashboard = () => {
   const employeeCharges = totalMassSalary * 0.036;
   const chargeRatio = ((employerCharges + employeeCharges) / totalMassSalary * 100).toFixed(1);
 
+  // Filter employees based on search term and filters
+  const filteredEmployees = mockEmployeeData.filter(employee => {
+    const matchesSearch = 
+      employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      employee.position.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      employee.department.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesDepartment = filters.department === "all" || employee.department === filters.department;
+    const matchesSalary = employee.salary >= filters.minSalary && employee.salary <= filters.maxSalary;
+    
+    return matchesSearch && matchesDepartment && matchesSalary;
+  });
+
+  const handleAddDepartment = () => {
+    // Vérifier si le département existe déjà
+    if (mockDepartmentData.some(dept => dept.name.toLowerCase() === newDepartment.name.toLowerCase())) {
+      toast.error("Ce département existe déjà");
+      return;
+    }
+
+    // Créer le nouveau département
+    const department = {
+      id: mockDepartmentData.length + 1,
+      name: newDepartment.name,
+      description: newDepartment.description,
+      employees: 0,
+      budget: newDepartment.budget,
+      manager: newDepartment.manager,
+      growth: 0
+    };
+
+    // Ajouter le département à la liste
+    mockDepartmentData.push(department);
+    setShowAddDepartmentModal(false);
+    setNewDepartment({
+      name: "",
+      description: "",
+      budget: 0,
+      manager: ""
+    });
+
+    toast.success("Département ajouté avec succès");
+  };
+
   return (
     <Layout>
       <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-gray-900">
         {/* Enhanced Header */}
-        <div className="bg-white dark:bg-gray-800 border-b p-4 sm:p-6">
-          <div className="container mx-auto">
-            <div className="flex flex-col md:flex-row justify-between items-start md:items-center space-y-4 md:space-y-0">
-              <div className="flex items-center">
-                <div className="bg-gray-100 dark:bg-gray-700 rounded-lg h-12 w-12 flex items-center justify-center mr-4">
-                  <Building className="h-6 w-6 text-primary" />
-                </div>
-                <div>
-                  <h1 className="text-2xl font-bold">Technoplus Bénin SARL</h1>
-                  <p className="text-sm text-muted-foreground">
-                    Service RH & Paie • Pays: <span className="font-medium capitalize">{country}</span>
-                  </p>
-                </div>
+        <div className="bg-white dark:bg-gray-800 shadow-sm">
+          <div className="container mx-auto px-4 py-4">
+            <div className="flex justify-between items-center">
+              <div>
+                <h1 className="text-2xl font-bold">Tableau de bord entreprise</h1>
+                <p className="text-sm text-muted-foreground">
+                  {country === "benin" ? "TechnoBénin" : "TechnoTogo"}
+                </p>
               </div>
-
-              <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
-                <div>
-                  <Label htmlFor="period-selector" className="text-xs mb-1 block">Période d'analyse</Label>
-                  <Select defaultValue="month" onValueChange={setSelectedPeriod}>
-                    <SelectTrigger id="period-selector" className="w-[180px]">
-                      <SelectValue placeholder="Sélectionner la période" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="month">Mai 2025 (Mois courant)</SelectItem>
-                      <SelectItem value="quarter">Q2 2025 (Trimestre)</SelectItem>
-                      <SelectItem value="year">2025 (Année)</SelectItem>
-                      <SelectItem value="custom">Période personnalisée</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div>
-                  <Label className="text-xs mb-1 block opacity-0">Actions</Label>
-                  <Button>
-                    <FileSpreadsheet className="h-4 w-4 mr-2" />
-                    Exporter les données
-                  </Button>
-                </div>
+              <div className="flex items-center space-x-4">
+                <Button onClick={() => navigate('/simulation/enterprise')}>
+                  <Calculator className="mr-2 h-4 w-4" />
+                  Simulation
+                </Button>
+                <Select defaultValue={selectedPeriod} onValueChange={setSelectedPeriod}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Période" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="month">Ce mois</SelectItem>
+                    <SelectItem value="quarter">Ce trimestre</SelectItem>
+                    <SelectItem value="year">Cette année</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
             </div>
           </div>
@@ -419,17 +465,19 @@ const EnterpriseDashboard = () => {
               </div>
 
               <Card>
-                <CardHeader className="flex flex-row items-center justify-between">
-                  <div>
-                    <CardTitle>Détails des départements</CardTitle>
-                    <CardDescription>
-                      Vue d'ensemble des départements et services
-                    </CardDescription>
+                <CardHeader>
+                  <div className="flex justify-between items-center">
+                    <div>
+                      <CardTitle>Détails des départements</CardTitle>
+                      <CardDescription>
+                        Vue d'ensemble des départements et leur performance
+                      </CardDescription>
+                    </div>
+                    <Button onClick={() => setShowAddDepartmentModal(true)}>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Ajouter
+                    </Button>
                   </div>
-                  <Button size="sm">
-                    <Plus className="mr-2 h-4 w-4" />
-                    Ajouter
-                  </Button>
                 </CardHeader>
                 <CardContent>
                   <Table>
@@ -480,9 +528,15 @@ const EnterpriseDashboard = () => {
                         type="text" 
                         placeholder="Rechercher..." 
                         className="pl-8 h-9"
+                        value={searchTerm}
+                        onChange={(e) => setSearchTerm(e.target.value)}
                       />
                     </div>
-                    <Button size="sm" variant="outline">
+                    <Button 
+                      size="sm" 
+                      variant="outline"
+                      onClick={() => setShowFilters(!showFilters)}
+                    >
                       <Filter className="mr-2 h-4 w-4" />
                       Filtres
                     </Button>
@@ -492,6 +546,50 @@ const EnterpriseDashboard = () => {
                     </Button>
                   </div>
                 </CardHeader>
+
+                {showFilters && (
+                  <div className="px-6 pb-4 space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div>
+                        <Label>Département</Label>
+                        <Select 
+                          value={filters.department} 
+                          onValueChange={(value) => setFilters(prev => ({ ...prev, department: value }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Tous les départements" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">Tous les départements</SelectItem>
+                            <SelectItem value="Technique">Technique</SelectItem>
+                            <SelectItem value="Commercial">Commercial</SelectItem>
+                            <SelectItem value="Administratif">Administratif</SelectItem>
+                            <SelectItem value="Direction">Direction</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      
+                      <div>
+                        <Label>Salaire minimum</Label>
+                        <Input 
+                          type="number"
+                          value={filters.minSalary}
+                          onChange={(e) => setFilters(prev => ({ ...prev, minSalary: Number(e.target.value) }))}
+                        />
+                      </div>
+                      
+                      <div>
+                        <Label>Salaire maximum</Label>
+                        <Input 
+                          type="number"
+                          value={filters.maxSalary}
+                          onChange={(e) => setFilters(prev => ({ ...prev, maxSalary: Number(e.target.value) }))}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                )}
+
                 <CardContent>
                   <Table>
                     <TableHeader>
@@ -504,7 +602,7 @@ const EnterpriseDashboard = () => {
                       </TableRow>
                     </TableHeader>
                     <TableBody>
-                      {mockEmployeeData.map((employee) => (
+                      {filteredEmployees.map((employee) => (
                         <TableRow key={employee.id}>
                           <TableCell className="font-medium">{employee.name}</TableCell>
                           <TableCell>{employee.department}</TableCell>
@@ -857,6 +955,77 @@ const EnterpriseDashboard = () => {
           </Tabs>
         </div>
       </div>
+
+      {/* Modal d'ajout de département */}
+      <Dialog open={showAddDepartmentModal} onOpenChange={setShowAddDepartmentModal}>
+        <DialogContent className="sm:max-w-[425px]">
+          <DialogHeader>
+            <DialogTitle>Ajouter un nouveau département</DialogTitle>
+            <DialogDescription>
+              Remplissez les informations pour créer un nouveau département
+            </DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-4 py-4">
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="name" className="text-right">
+                Nom
+              </Label>
+              <Input
+                id="name"
+                value={newDepartment.name}
+                onChange={(e) => setNewDepartment(prev => ({ ...prev, name: e.target.value }))}
+                className="col-span-3"
+                placeholder="Ex: Ressources Humaines"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="description" className="text-right">
+                Description
+              </Label>
+              <Input
+                id="description"
+                value={newDepartment.description}
+                onChange={(e) => setNewDepartment(prev => ({ ...prev, description: e.target.value }))}
+                className="col-span-3"
+                placeholder="Description du département"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="budget" className="text-right">
+                Budget
+              </Label>
+              <Input
+                id="budget"
+                type="number"
+                value={newDepartment.budget}
+                onChange={(e) => setNewDepartment(prev => ({ ...prev, budget: Number(e.target.value) }))}
+                className="col-span-3"
+                placeholder="Budget annuel"
+              />
+            </div>
+            <div className="grid grid-cols-4 items-center gap-4">
+              <Label htmlFor="manager" className="text-right">
+                Manager
+              </Label>
+              <Input
+                id="manager"
+                value={newDepartment.manager}
+                onChange={(e) => setNewDepartment(prev => ({ ...prev, manager: e.target.value }))}
+                className="col-span-3"
+                placeholder="Nom du manager"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAddDepartmentModal(false)}>
+              Annuler
+            </Button>
+            <Button onClick={handleAddDepartment}>
+              Ajouter
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 };
