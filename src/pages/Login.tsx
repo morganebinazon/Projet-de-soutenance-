@@ -1,4 +1,4 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -15,6 +15,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useCountry } from "@/hooks/use-country.tsx";
+import { useState } from "react";
+import { authService } from "@/services/auth";
 
 const loginSchema = z.object({
   email: z.string().email("Email invalide"),
@@ -26,6 +28,8 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 
 const Login = () => {
   const { country } = useCountry();
+  const navigate = useNavigate();
+  const [isLoading, setIsLoading] = useState(false);
   
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -36,10 +40,28 @@ const Login = () => {
     },
   });
 
-  const onSubmit = (values: LoginFormValues) => {
-    toast.success("Connexion réussie ! Bienvenue sur PayeAfrique.");
-    console.log(values);
-    // Handle login logic here
+  const onSubmit = async (values: LoginFormValues) => {
+    try {
+      setIsLoading(true);
+      const response = await authService.login({
+        email: values.email,
+        password: values.password
+      });
+
+      // Stocker le token et les informations utilisateur
+      localStorage.setItem('token', response.token);
+      localStorage.setItem('user', JSON.stringify(response.user));
+
+      toast.success("Connexion réussie ! Bienvenue sur PayeAfrique.");
+      
+      // Rediriger vers le tableau de bord
+      navigate('/dashboard');
+    } catch (error: any) {
+      console.error('Erreur de connexion:', error);
+      toast.error(error.response?.data?.message || "Erreur lors de la connexion");
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   return (
@@ -62,7 +84,11 @@ const Login = () => {
                   <FormItem>
                     <FormLabel>Email</FormLabel>
                     <FormControl>
-                      <Input placeholder="votre-email@example.com" {...field} />
+                      <Input 
+                        placeholder="votre-email@example.com" 
+                        {...field} 
+                        disabled={isLoading}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -75,7 +101,11 @@ const Login = () => {
                   <FormItem>
                     <FormLabel>Mot de passe</FormLabel>
                     <FormControl>
-                      <Input type="password" {...field} />
+                      <Input 
+                        type="password" 
+                        {...field} 
+                        disabled={isLoading}
+                      />
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -91,6 +121,7 @@ const Login = () => {
                     onChange={(e) =>
                       form.setValue("rememberMe", e.target.checked)
                     }
+                    disabled={isLoading}
                   />
                   <label
                     htmlFor="rememberMe"
@@ -107,8 +138,8 @@ const Login = () => {
                 </Link>
               </div>
 
-              <Button type="submit" className="w-full">
-                Se connecter
+              <Button type="submit" className="w-full" disabled={isLoading}>
+                {isLoading ? "Connexion en cours..." : "Se connecter"}
               </Button>
             </form>
           </Form>
@@ -125,7 +156,7 @@ const Login = () => {
           </div>
 
           <div className="grid grid-cols-2 gap-4">
-            <Button variant="outline" type="button" className="space-x-2">
+            <Button variant="outline" type="button" className="space-x-2" disabled={isLoading}>
               <svg viewBox="0 0 24 24" className="h-5 w-5">
                 <path
                   d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
@@ -146,7 +177,7 @@ const Login = () => {
               </svg>
               <span>Google</span>
             </Button>
-            <Button variant="outline" type="button" className="space-x-2">
+            <Button variant="outline" type="button" className="space-x-2" disabled={isLoading}>
               <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current text-blue-600">
                 <path d="M22,12.1c0-5.5-4.5-10-10-10S2,6.5,2,12.1c0,5,3.7,9.1,8.4,9.9v-7H7.9v-2.9h2.5V9.9c0-2.5,1.5-3.9,3.8-3.9c1.1,0,2.2,0.2,2.2,0.2v2.5h-1.3c-1.2,0-1.6,0.8-1.6,1.6v1.9h2.8L15.9,15h-2.3v7C18.3,21.2,22,17.1,22,12.1z"/>
               </svg>

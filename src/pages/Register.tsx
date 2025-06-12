@@ -16,7 +16,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useCountry } from "@/hooks/use-country.tsx";
-import { useAuth } from "@/hooks/use-auth";
+import { authService } from "@/services/auth";
 
 // Schéma de validation pour l'étape 1
 const step1Schema = z.object({
@@ -55,10 +55,10 @@ type RegisterFormValues = z.infer<typeof step1Schema> &
 
 const Register = () => {
   const { country } = useCountry();
-  const { register, isLoading, error } = useAuth();
   const navigate = useNavigate();
   const [step, setStep] = useState<number>(1);
   const [accountType, setAccountType] = useState<"individual" | "company">("individual");
+  const [isLoading, setIsLoading] = useState(false);
   
   const form = useForm<RegisterFormValues>({
     resolver: zodResolver(step === 1 ? step1Schema : 
@@ -105,18 +105,21 @@ const Register = () => {
           });
         }
 
+        setIsLoading(true);
         // Envoyer les données d'inscription
-        await register({
+        const response = await authService.register({
+          name: `${values.firstName} ${values.lastName}`,
           email: values.email,
           password: values.password,
-          accountType,
-          firstName: values.firstName,
-          lastName: values.lastName,
+          company: accountType === "company" ? values.companyName : undefined,
           phone: values.phone,
-          companyName: values.companyName,
-          taxId: values.taxId,
+          country: country === 'benin' ? 'Bénin' : 'Togo',
         });
-        
+
+        // Stocker le token et les informations utilisateur
+        localStorage.setItem('token', response.token);
+        localStorage.setItem('user', JSON.stringify(response.user));
+
         toast.success("Inscription réussie ! Bienvenue sur PayeAfrique.");
         navigate("/dashboard");
       }
@@ -127,8 +130,11 @@ const Register = () => {
           toast.error(err.message);
         });
       } else {
-        toast.error(error.message);
+        console.error('Erreur lors de l\'inscription:', error);
+        toast.error(error.response?.data?.message || "Erreur lors de l'inscription");
       }
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -154,12 +160,6 @@ const Register = () => {
             ))}
           </div>
 
-          {error && (
-            <div className="p-4 bg-red-50 text-red-600 rounded-lg text-sm">
-              {error}
-            </div>
-          )}
-
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
               {step === 1 && (
@@ -171,12 +171,17 @@ const Register = () => {
                       <FormItem>
                         <FormLabel>Email</FormLabel>
                         <FormControl>
-                          <Input placeholder="votre-email@example.com" {...field} />
+                          <Input 
+                            placeholder="votre-email@example.com" 
+                            {...field} 
+                            disabled={isLoading}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
+
                   <FormField
                     control={form.control}
                     name="password"
@@ -184,12 +189,17 @@ const Register = () => {
                       <FormItem>
                         <FormLabel>Mot de passe</FormLabel>
                         <FormControl>
-                          <Input type="password" {...field} />
+                          <Input 
+                            type="password" 
+                            {...field} 
+                            disabled={isLoading}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
                     )}
                   />
+
                   <FormField
                     control={form.control}
                     name="confirmPassword"
@@ -197,7 +207,11 @@ const Register = () => {
                       <FormItem>
                         <FormLabel>Confirmer le mot de passe</FormLabel>
                         <FormControl>
-                          <Input type="password" {...field} />
+                          <Input 
+                            type="password" 
+                            {...field} 
+                            disabled={isLoading}
+                          />
                         </FormControl>
                         <FormMessage />
                       </FormItem>
@@ -254,7 +268,11 @@ const Register = () => {
                             <FormItem>
                               <FormLabel>Prénom</FormLabel>
                               <FormControl>
-                                <Input placeholder="Prénom" {...field} />
+                                <Input 
+                                  placeholder="Prénom" 
+                                  {...field} 
+                                  disabled={isLoading}
+                                />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -267,7 +285,11 @@ const Register = () => {
                             <FormItem>
                               <FormLabel>Nom</FormLabel>
                               <FormControl>
-                                <Input placeholder="Nom" {...field} />
+                                <Input 
+                                  placeholder="Nom" 
+                                  {...field} 
+                                  disabled={isLoading}
+                                />
                               </FormControl>
                               <FormMessage />
                             </FormItem>
@@ -281,7 +303,11 @@ const Register = () => {
                           <FormItem>
                             <FormLabel>Téléphone</FormLabel>
                             <FormControl>
-                              <Input placeholder="+229 00000000" {...field} />
+                              <Input 
+                                placeholder="+229 00000000" 
+                                {...field} 
+                                disabled={isLoading}
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -297,7 +323,11 @@ const Register = () => {
                           <FormItem>
                             <FormLabel>Nom de l'entreprise</FormLabel>
                             <FormControl>
-                              <Input placeholder="Nom de l'entreprise" {...field} />
+                              <Input 
+                                placeholder="Nom de l'entreprise" 
+                                {...field} 
+                                disabled={isLoading}
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -310,7 +340,11 @@ const Register = () => {
                           <FormItem>
                             <FormLabel>Numéro d'identification fiscale</FormLabel>
                             <FormControl>
-                              <Input placeholder="NIF" {...field} />
+                              <Input 
+                                placeholder="NIF" 
+                                {...field} 
+                                disabled={isLoading}
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>
@@ -323,7 +357,11 @@ const Register = () => {
                           <FormItem>
                             <FormLabel>Téléphone</FormLabel>
                             <FormControl>
-                              <Input placeholder="+229 00000000" {...field} />
+                              <Input 
+                                placeholder="+229 00000000" 
+                                {...field} 
+                                disabled={isLoading}
+                              />
                             </FormControl>
                             <FormMessage />
                           </FormItem>

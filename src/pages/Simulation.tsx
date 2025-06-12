@@ -22,6 +22,16 @@ import { useNavigate } from "react-router-dom";
 import { Search, Filter } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Slider } from "@/components/ui/slider";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import { formatCurrency } from "@/lib/utils";
+
+interface SalaryResult {
+  grossSalary: number;
+  ipres: number;
+  cnss: number;
+  irpp: number;
+  netSalary: number;
+}
 
 const Simulation = () => {
   const { country } = useCountry();
@@ -49,6 +59,9 @@ const Simulation = () => {
   const [isSendingEmail, setIsSendingEmail] = useState(false);
   const [showShareModal, setShowShareModal] = useState(false);
   const [emailAddress, setEmailAddress] = useState("");
+  const [calculationType, setCalculationType] = useState<"gross-to-net" | "net-to-gross">("gross-to-net");
+  const [salary, setSalary] = useState<string>("");
+  const [result, setResult] = useState<SalaryResult | null>(null);
 
   // États pour la simulation multiple
   const [employees, setEmployees] = useState<Array<{
@@ -877,6 +890,194 @@ const Simulation = () => {
         document.body.removeChild(tempContainer);
       }
     }
+  };
+
+  const calculateGrossToNetBenin = (grossSalary: number): SalaryResult => {
+    const ipres = grossSalary * 0.08;
+    const cnss = grossSalary * 0.07;
+    const irpp = calculateIRPPBenin(grossSalary);
+    const netSalary = grossSalary - ipres - cnss - irpp;
+
+    return {
+      grossSalary: Math.round(grossSalary),
+      ipres: Math.round(ipres),
+      cnss: Math.round(cnss),
+      irpp: Math.round(irpp),
+      netSalary: Math.round(netSalary)
+    };
+  };
+
+  const calculateGrossToNetTogo = (grossSalary: number): SalaryResult => {
+    const ipres = grossSalary * 0.08;
+    const cnss = grossSalary * 0.07;
+    const irpp = calculateIRPPTogo(grossSalary);
+    const netSalary = grossSalary - ipres - cnss - irpp;
+
+    return {
+      grossSalary: Math.round(grossSalary),
+      ipres: Math.round(ipres),
+      cnss: Math.round(cnss),
+      irpp: Math.round(irpp),
+      netSalary: Math.round(netSalary)
+    };
+  };
+
+  const calculateNetToGrossBenin = (netSalary: number): SalaryResult => {
+    // Estimation initiale du brut (environ 30% plus élevé que le net)
+    let grossSalary = netSalary * 1.3;
+    let calculatedNet = 0;
+    let maxAttempts = 50;
+    let attempts = 0;
+
+    while (attempts < maxAttempts) {
+      // Calculer les cotisations
+      const ipres = grossSalary * 0.08;
+      const cnss = grossSalary * 0.07;
+      const irpp = calculateIRPPBenin(grossSalary);
+      
+      // Calculer le net
+      calculatedNet = grossSalary - ipres - cnss - irpp;
+
+      // Si le net calculé est proche du net souhaité, on a trouvé notre brut
+      if (Math.abs(calculatedNet - netSalary) < 1) {
+        break;
+      }
+
+      // Ajuster le brut
+      if (calculatedNet < netSalary) {
+        grossSalary += (netSalary - calculatedNet);
+      } else {
+        grossSalary -= (calculatedNet - netSalary);
+      }
+
+      attempts++;
+    }
+
+    return {
+      grossSalary: Math.round(grossSalary),
+      ipres: Math.round(grossSalary * 0.08),
+      cnss: Math.round(grossSalary * 0.07),
+      irpp: Math.round(calculateIRPPBenin(grossSalary)),
+      netSalary: Math.round(calculatedNet)
+    };
+  };
+
+  const calculateNetToGrossTogo = (netSalary: number): SalaryResult => {
+    // Estimation initiale du brut (environ 30% plus élevé que le net)
+    let grossSalary = netSalary * 1.3;
+    let calculatedNet = 0;
+    let maxAttempts = 50;
+    let attempts = 0;
+
+    while (attempts < maxAttempts) {
+      // Calculer les cotisations
+      const ipres = grossSalary * 0.08;
+      const cnss = grossSalary * 0.07;
+      const irpp = calculateIRPPTogo(grossSalary);
+      
+      // Calculer le net
+      calculatedNet = grossSalary - ipres - cnss - irpp;
+
+      // Si le net calculé est proche du net souhaité, on a trouvé notre brut
+      if (Math.abs(calculatedNet - netSalary) < 1) {
+        break;
+      }
+
+      // Ajuster le brut
+      if (calculatedNet < netSalary) {
+        grossSalary += (netSalary - calculatedNet);
+      } else {
+        grossSalary -= (calculatedNet - netSalary);
+      }
+
+      attempts++;
+    }
+
+    return {
+      grossSalary: Math.round(grossSalary),
+      ipres: Math.round(grossSalary * 0.08),
+      cnss: Math.round(grossSalary * 0.07),
+      irpp: Math.round(calculateIRPPTogo(grossSalary)),
+      netSalary: Math.round(calculatedNet)
+    };
+  };
+
+  const handleCalculate = () => {
+    if (!salary || isNaN(Number(salary))) {
+      toast.error('Veuillez entrer un montant valide');
+      return;
+    }
+
+    const salaryAmount = Number(salary);
+    console.log('Type de calcul:', calculationType);
+    console.log('Pays:', country);
+    console.log('Montant saisi:', salaryAmount);
+
+    try {
+      let result: SalaryResult;
+
+      if (calculationType === 'gross-to-net') {
+        if (country === 'benin') {
+          result = calculateGrossToNetBenin(salaryAmount);
+        } else {
+          result = calculateGrossToNetTogo(salaryAmount);
+        }
+      } else {
+        if (country === 'benin') {
+          result = calculateNetToGrossBenin(salaryAmount);
+        } else {
+          result = calculateNetToGrossTogo(salaryAmount);
+        }
+      }
+
+      console.log('Résultat du calcul:', result);
+      setResult(result);
+    } catch (error) {
+      console.error('Erreur de calcul:', error);
+      toast.error('Une erreur est survenue lors du calcul');
+    }
+  };
+
+  const calculateIRPPBenin = (grossSalary: number): number => {
+    const annualSalary = grossSalary * 12;
+    let irpp = 0;
+
+    if (annualSalary <= 300000) {
+      irpp = annualSalary * 0.05;
+    } else if (annualSalary <= 600000) {
+      irpp = 15000 + (annualSalary - 300000) * 0.10;
+    } else if (annualSalary <= 1200000) {
+      irpp = 45000 + (annualSalary - 600000) * 0.15;
+    } else if (annualSalary <= 2400000) {
+      irpp = 135000 + (annualSalary - 1200000) * 0.20;
+    } else if (annualSalary <= 4800000) {
+      irpp = 375000 + (annualSalary - 2400000) * 0.25;
+    } else {
+      irpp = 975000 + (annualSalary - 4800000) * 0.30;
+    }
+
+    return irpp / 12; // Retourner l'IRPP mensuel
+  };
+
+  const calculateIRPPTogo = (grossSalary: number): number => {
+    const annualSalary = grossSalary * 12;
+    let irpp = 0;
+
+    if (annualSalary <= 300000) {
+      irpp = annualSalary * 0.05;
+    } else if (annualSalary <= 600000) {
+      irpp = 15000 + (annualSalary - 300000) * 0.10;
+    } else if (annualSalary <= 1200000) {
+      irpp = 45000 + (annualSalary - 600000) * 0.15;
+    } else if (annualSalary <= 2400000) {
+      irpp = 135000 + (annualSalary - 1200000) * 0.20;
+    } else if (annualSalary <= 4800000) {
+      irpp = 375000 + (annualSalary - 2400000) * 0.25;
+    } else {
+      irpp = 975000 + (annualSalary - 4800000) * 0.30;
+    }
+
+    return irpp / 12; // Retourner l'IRPP mensuel
   };
 
   return (
@@ -2438,6 +2639,57 @@ const Simulation = () => {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {result && (
+        <div className="mt-8 p-6 bg-white rounded-lg shadow-lg">
+          <h3 className="text-xl font-semibold mb-4">Résultats du calcul</h3>
+          
+          <div className="space-y-4">
+            <div className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
+              <span className="font-medium">
+                {calculationType === 'gross-to-net' ? 'Salaire Brut' : 'Salaire Net'}
+              </span>
+              <span className="text-lg font-semibold">
+                {calculationType === 'gross-to-net' ? result.grossSalary : result.netSalary} FCFA
+              </span>
+            </div>
+
+            <div className="space-y-2">
+              <h4 className="font-medium text-gray-700">Détail des cotisations</h4>
+              <div className="space-y-2">
+                <div className="flex justify-between items-center p-3 bg-gray-50 rounded">
+                  <span>IPRES (8%)</span>
+                  <span>{result.ipres} FCFA</span>
+                </div>
+                <div className="flex justify-between items-center p-3 bg-gray-50 rounded">
+                  <span>CNSS (7%)</span>
+                  <span>{result.cnss} FCFA</span>
+                </div>
+                <div className="flex justify-between items-center p-3 bg-gray-50 rounded">
+                  <span>IRPP</span>
+                  <span>{result.irpp} FCFA</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-between items-center p-4 bg-blue-50 rounded-lg">
+              <span className="font-medium">
+                {calculationType === 'gross-to-net' ? 'Salaire Net' : 'Salaire Brut'}
+              </span>
+              <span className="text-lg font-semibold text-blue-600">
+                {calculationType === 'gross-to-net' ? result.netSalary : result.grossSalary} FCFA
+              </span>
+            </div>
+
+            <div className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
+              <span className="font-medium">Total des cotisations</span>
+              <span className="text-lg font-semibold text-red-600">
+                {result.ipres + result.cnss + result.irpp} FCFA
+              </span>
+            </div>
+          </div>
+        </div>
+      )}
     </Layout>
   );
 };
