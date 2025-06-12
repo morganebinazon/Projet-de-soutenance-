@@ -8,30 +8,27 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ArrowRight, ArrowLeft, DownloadIcon, Mail, Calculator, BarChart2, History, FileText, MinusCircle, Building, Info, Settings, ChevronDown, Users, Plus, X, Share2 } from "lucide-react";
+import { ArrowRight, ArrowLeft, DownloadIcon, Mail, Calculator, BarChart2, History, FileText, MinusCircle, Building, Info, Settings, ChevronDown, Users, Plus, X } from "lucide-react";
 import SalaryChart from "@/components/simulation/SalaryChart";
 import SimulationPDF from "@/components/simulation/SimulationPDF";
-import { useCountry } from "@/hooks/use-country.tsx";
+import { useCountry } from "@/hooks/use-country";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
 import { useAuth } from "@/hooks/use-auth";
 import emailService from "@/services/email.service";
 import { toast } from "@/components/ui/use-toast";
-import { calculateCNSS, calculateImpot, calculateFraisPro, calculateITSBenin, calculateChargesPatronalesTogo, calculateNetToBrutBenin, calculateNetToBrutTogo, TOGO } from "@/constants/tax";
+import { 
+  calculateCNSS, 
+  calculateFraisPro, 
+  calculateITSBenin,
+  calculateIRPPTogo,
+  calculateNetToBrutBenin,
+  calculateNetToBrutTogo,
+  calculateChargesPatronalesTogo,
+  BENIN,
+  TOGO
+} from "../constants/tax";
 import { useNavigate } from "react-router-dom";
-import { Search, Filter } from "lucide-react";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
-import { Slider } from "@/components/ui/slider";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { formatCurrency } from "@/lib/utils";
-
-interface SalaryResult {
-  grossSalary: number;
-  ipres: number;
-  cnss: number;
-  irpp: number;
-  netSalary: number;
-}
 
 const Simulation = () => {
   const { country } = useCountry();
@@ -57,11 +54,7 @@ const Simulation = () => {
   const [selectedSector, setSelectedSector] = useState<string>("commerce");
   const [customSector, setCustomSector] = useState<string>("");
   const [isSendingEmail, setIsSendingEmail] = useState(false);
-  const [showShareModal, setShowShareModal] = useState(false);
-  const [emailAddress, setEmailAddress] = useState("");
-  const [calculationType, setCalculationType] = useState<"gross-to-net" | "net-to-gross">("gross-to-net");
-  const [salary, setSalary] = useState<string>("");
-  const [result, setResult] = useState<SalaryResult | null>(null);
+  const navigate = useNavigate();
 
   // États pour la simulation multiple
   const [employees, setEmployees] = useState<Array<{
@@ -196,9 +189,18 @@ const Simulation = () => {
         return;
       }
 
+      if (!country) {
+        toast({
+          title: "Erreur",
+          description: "Veuillez sélectionner un pays",
+          variant: "destructive"
+        });
+        return;
+      }
+
       if (country === "benin") {
         // Calcul du brut à partir du net pour le Bénin
-        const resultat = calculateNetToBrutBenin(netSalaryValue);
+        const resultat = calculateNetToBrutBenin(netSalaryValue, familyStatus, parseInt(children));
         const salaireBrut = resultat.salaireBrut;
         
         // Mise à jour des résultats avec les détails du calcul
@@ -229,7 +231,7 @@ const Simulation = () => {
         });
       } else {
         // Calcul du brut à partir du net pour le Togo
-        const resultat = calculateNetToBrutTogo(netSalaryValue);
+        const resultat = calculateNetToBrutTogo(netSalaryValue, familyStatus, parseInt(children));
         const salaireBrut = resultat.salaireBrut;
         
         // Mise à jour des résultats avec les détails du calcul
@@ -247,16 +249,9 @@ const Simulation = () => {
           baseImposable: resultat.details.baseImposable,
           taxableIncomeITS_IRPP: resultat.details.baseImposable,
           quotientFamilialParts: 1,
-          chargesPatronales: {
-            pension: Math.round(salaireBrut * TOGO.CNSS_PATRONAL.PENSION),
-            pf: Math.round(salaireBrut * TOGO.CNSS_PATRONAL.PF),
-            at: Math.round(salaireBrut * TOGO.CNSS_PATRONAL.AT),
-            amu: Math.round(salaireBrut * TOGO.CNSS_PATRONAL.AMU),
-            total: Math.round(salaireBrut * TOGO.CNSS_PATRONAL.TOTAL)
-          },
+          chargesPatronales: calculateChargesPatronalesTogo(salaireBrut),
           employerSocialContributions: Math.round(salaireBrut * TOGO.CNSS_PATRONAL.TOTAL),
           totalEmployerCost: salaireBrut * (1 + TOGO.CNSS_PATRONAL.TOTAL),
-          // Ajout des détails de l'IRPP par tranches
           irppDetails: resultat.details.irpp.details,
           avantages: {
             transport: 0,
@@ -268,71 +263,116 @@ const Simulation = () => {
         });
       }
     } else {
-      // Calcul existant Brut → Net
+      // Validation pour le mode brut-to-net
+      if (!grossSalary) {
+        toast({
+          title: "Erreur",
+          description: "Veuillez saisir le salaire brut",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const grossSalaryValue = parseFloat(grossSalary.toString());
+      if (isNaN(grossSalaryValue) || grossSalaryValue <= 0) {
+        toast({
+          title: "Erreur",
+          description: "Le salaire brut doit être un nombre positif",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      if (!country) {
+        toast({
+          title: "Erreur",
+          description: "Veuillez sélectionner un pays",
+          variant: "destructive"
+        });
+        return;
+      }
+
       calculateResults();
     }
   };
 
   const calculateResults = () => {
-    if (!grossSalary) return;
+    if (!grossSalary) {
+      toast({
+        title: "Erreur",
+        description: "Veuillez saisir le salaire brut",
+        variant: "destructive"
+      });
+      return;
+    }
 
-    // Salaire brut total (incluant les primes)
-    const salaireBrut = grossSalary + transportBonus + housingBonus + natureBenefits + performanceBonus + exceptionalBonus;
-    
-    // Calcul des cotisations sociales
-    const cotisationsSociales = calculateCNSS(salaireBrut, country);
-    
-    // Calcul des frais professionnels (20% du brut - cotisations, plafonné)
-    const fraisPro = calculateFraisPro(salaireBrut, cotisationsSociales);
-    
-    // Base imposable pour l'IRPP (après CNSS et frais pro)
-    const baseImposable = salaireBrut - cotisationsSociales - fraisPro;
-    
-    // Calcul de l'IRPP
-    const impot = calculateImpot(salaireBrut, country, familyStatus, parseInt(children));
-    
-    // Calcul du salaire net
-    const salaireNet = salaireBrut - cotisationsSociales - impot;
-    
-    // Calcul des charges patronales
-    const chargesPatronales = calculateChargesPatronalesTogo(salaireBrut);
-    
-    // Mise à jour des résultats avec tous les détails
-    setResults({
-      // Montants principaux
-      salaireBrut: grossSalary,
-      totalGross: salaireBrut,
-      salaireNet: salaireNet,
-      netSalary: salaireNet,
+    try {
+      // Conversion et validation des bonus
+      const transportBonusValue = transportBonus || 0;
+      const housingBonusValue = housingBonus || 0;
+      const natureBenefitsValue = natureBenefits || 0;
+      const performanceBonusValue = performanceBonus || 0;
+      const exceptionalBonusValue = exceptionalBonus || 0;
+
+      // Salaire brut total (incluant les primes)
+      const salaireBrut = grossSalary + transportBonusValue + housingBonusValue + 
+                         natureBenefitsValue + performanceBonusValue + exceptionalBonusValue;
       
-      // Cotisations et déductions
-      cnss: cotisationsSociales,
-      socialContributionsEmployee: cotisationsSociales,
-      fraisPro: fraisPro,
-      impot: impot,
-      incomeTax: impot,
+      // Calcul des cotisations sociales
+      const cotisationsSociales = calculateCNSS(salaireBrut, country);
       
-      // Base de calcul
-      baseImposable: baseImposable,
-      taxableIncomeITS_IRPP: baseImposable,
+      // Calcul des frais professionnels (20% du brut - cotisations, plafonné)
+      const fraisPro = calculateFraisPro(salaireBrut, cotisationsSociales);
       
-      // Charges patronales
-      chargesPatronales: chargesPatronales,
-      employerSocialContributions: chargesPatronales.total,
-      totalEmployerCost: salaireBrut + chargesPatronales.total,
+      // Base imposable pour l'IRPP (après CNSS et frais pro)
+      const baseImposable = salaireBrut - cotisationsSociales - fraisPro;
       
-      // Quotient familial (à implémenter plus tard)
-      quotientFamilialParts: 1,
+      // Calcul de l'IRPP
+      const impot = country === "benin" 
+        ? calculateITSBenin(salaireBrut)  // Pour le Bénin, on utilise le salaire brut
+        : calculateIRPPTogo(baseImposable);  // Pour le Togo, on utilise la base imposable
       
-      // Détail des avantages
-      avantages: {
-        transport: transportBonus,
-        logement: housingBonus,
-        nature: natureBenefits,
-        performance: performanceBonus,
-        exceptionnel: exceptionalBonus
-      }
-    });
+      // Calcul du salaire net
+      const salaireNet = salaireBrut - cotisationsSociales - impot;
+      
+      // Calcul des charges patronales selon le pays
+      const chargesPatronales = country === "benin"
+        ? { total: Math.round(salaireBrut * BENIN.CNSS_PATRONAL) }
+        : calculateChargesPatronalesTogo(salaireBrut);
+
+      // Mise à jour des résultats
+      setResults({
+        salaireBrut: grossSalary,
+        totalGross: salaireBrut,
+        salaireNet: salaireNet,
+        netSalary: salaireNet,
+        cnss: cotisationsSociales,
+        socialContributionsEmployee: cotisationsSociales,
+        fraisPro: fraisPro,
+        impot: impot,
+        incomeTax: impot,
+        baseImposable: baseImposable,
+        taxableIncomeITS_IRPP: baseImposable,
+        chargesPatronales: chargesPatronales,
+        employerSocialContributions: chargesPatronales.total,
+        totalEmployerCost: salaireBrut + chargesPatronales.total,
+        quotientFamilialParts: 1,
+        avantages: {
+          transport: transportBonusValue,
+          logement: housingBonusValue,
+          nature: natureBenefitsValue,
+          performance: performanceBonusValue,
+          exceptionnel: exceptionalBonusValue
+        }
+      });
+    } catch (error) {
+      console.error('Erreur lors du calcul:', error);
+      toast({
+        title: "Erreur",
+        description: "Une erreur est survenue lors du calcul. Veuillez vérifier vos entrées.",
+        variant: "destructive"
+      });
+    }
   };
 
   const formatCurrency = (value: number) => {
@@ -351,126 +391,514 @@ const Simulation = () => {
     }));
   };
 
-  const handleDownloadPDF = () => {
-    if (!results) return;
-    const htmlContent = `
-      <!DOCTYPE html>
-      <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; margin: 0; padding: 20px; }
-            .header { text-align: center; margin-bottom: 30px; }
-            .title { font-size: 24px; color: #1a5f7a; margin-bottom: 5px; }
-            .subtitle { font-size: 18px; color: #666; }
-            .section { margin-bottom: 20px; }
-            .section-title { font-size: 16px; color: #1a5f7a; margin-bottom: 10px; border-bottom: 2px solid #1a5f7a; padding-bottom: 5px; }
-            .table { width: 100%; border-collapse: collapse; margin: 20px 0; }
-            .table th, .table td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-            .table th { background-color: #f5f5f5; }
-            .total { font-weight: bold; text-align: right; margin-top: 20px; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <div class="title">RÉSULTATS DE LA SIMULATION</div>
-            <div class="subtitle">${country === "benin" ? "Bénin" : "Togo"} - ${new Date().toLocaleDateString('fr-FR')}</div>
-          </div>
-
-          <div class="section">
-            <div class="section-title">Détails du Calcul</div>
-            <table class="table">
-              <tr>
-                <th>Description</th>
-                <th>Montant</th>
-              </tr>
-              <tr>
-                <td>Salaire brut mensuel</td>
-                <td>${formatCurrency(results.grossSalary)}</td>
-              </tr>
-              <tr>
-                <td>Total brut imposable</td>
-                <td>${formatCurrency(results.totalGross)}</td>
-              </tr>
-            </table>
-
-            <table class="table">
-              <tr>
-                <th>Déductions</th>
-                <th>Montant</th>
-              </tr>
-              <tr>
-                <td>Cotisations sociales (CNSS)</td>
-                <td>${formatCurrency(results.socialContributions)}</td>
-              </tr>
-              <tr>
-                <td>${country === "benin" ? "Impôt sur les Salaires (ITS)" : "Impôt sur le revenu (IRPP)"}</td>
-                <td>${formatCurrency(results.incomeTax)}</td>
-              </tr>
-            </table>
-
-            <div class="total">
-              Net à payer: ${formatCurrency(results.netSalary)}
-                  </div>
-                </div>
-        </body>
-      </html>
-    `;
-
-    const blob = new Blob([htmlContent], { type: 'text/html' });
-    const url = window.URL.createObjectURL(blob);
-    window.open(url, '_blank');
-  };
-
-  const handleSendEmail = () => {
-    if (!emailAddress) {
-      toast.error("Veuillez entrer une adresse email");
+  const handleDownloadPDF = async () => {
+    if (!results || !isAuthenticated) {
+      toast({
+        title: "Erreur",
+        description: "Vous devez être connecté pour télécharger le PDF",
+        variant: "destructive"
+      });
       return;
     }
-    toast.success(`La simulation a été envoyée à ${emailAddress}`);
-    setShowShareModal(false);
-    setEmailAddress("");
+
+    try {
+      const tempContainer = document.createElement('div');
+      tempContainer.style.position = 'absolute';
+      tempContainer.style.left = '-9999px';
+      tempContainer.style.width = '800px';
+      document.body.appendChild(tempContainer);
+
+      // Fonction pour formater la date
+      const formatDate = (date: Date | string) => {
+        return new Date(date).toLocaleDateString('fr-FR', {
+          year: 'numeric',
+          month: 'long',
+          day: 'numeric'
+        });
+      };
+
+      tempContainer.innerHTML = `
+        <div style="font-family: Arial, sans-serif; padding: 40px; background: white; color: #333;">
+          <!-- En-tête -->
+          <div style="text-align: center; margin-bottom: 30px; border-bottom: 2px solid #16a34a; padding-bottom: 20px;">
+            <h1 style="font-size: 28px; font-weight: bold; margin-bottom: 10px; color: #16a34a;">Simulation de Salaire</h1>
+            <p style="font-size: 18px; color: #666;">PayeAfrique - ${country === 'benin' ? 'Bénin' : 'Togo'}</p>
+            <p style="font-size: 14px; color: #666;">Date de simulation : ${formatDate(new Date())}</p>
+          </div>
+
+          <!-- Paramètres de la simulation -->
+          <div style="margin-bottom: 30px; background: #f8f8f8; padding: 20px; border-radius: 8px;">
+            <h2 style="font-size: 20px; font-weight: bold; margin-bottom: 15px; color: #16a34a;">Paramètres de la simulation</h2>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+              <div>
+                <p style="color: #666; margin-bottom: 5px;">Type de simulation</p>
+                <p style="font-weight: 500;">Brut → Net</p>
+              </div>
+              <div>
+                <p style="color: #666; margin-bottom: 5px;">Pays</p>
+                <p style="font-weight: 500;">${country === 'benin' ? 'Bénin' : 'Togo'}</p>
+              </div>
+              <div>
+                <p style="color: #666; margin-bottom: 5px;">Situation familiale</p>
+                <p style="font-weight: 500;">${familyStatus === 'single' ? 'Célibataire' : 
+                                             familyStatus === 'married' ? 'Marié(e)' :
+                                             familyStatus === 'divorced' ? 'Divorcé(e)' : 'Veuf/Veuve'}</p>
+              </div>
+              <div>
+                <p style="color: #666; margin-bottom: 5px;">Nombre d'enfants</p>
+                <p style="font-weight: 500;">${children}</p>
+              </div>
+              <div>
+                <p style="color: #666; margin-bottom: 5px;">Parts fiscales</p>
+                <p style="font-weight: 500;">${results.quotientFamilialParts}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Détail du salaire brut -->
+          <div style="margin-bottom: 30px;">
+            <h2 style="font-size: 20px; font-weight: bold; margin-bottom: 15px; color: #16a34a;">Composition du salaire brut</h2>
+            <div style="border: 1px solid #eee; border-radius: 8px;">
+              <div style="border-bottom: 1px solid #eee; padding: 12px; display: flex; justify-content: space-between;">
+                <span>Salaire brut de base</span>
+                <span style="font-weight: 500;">${formatCurrency(results.grossSalaryInput)} FCFA</span>
+              </div>
+              ${results.transportBonus > 0 ? `
+                <div style="border-bottom: 1px solid #eee; padding: 12px; display: flex; justify-content: space-between;">
+                  <span>Prime de transport</span>
+                  <span style="font-weight: 500;">${formatCurrency(results.transportBonus)} FCFA</span>
+                </div>
+              ` : ''}
+              ${results.housingBonus > 0 ? `
+                <div style="border-bottom: 1px solid #eee; padding: 12px; display: flex; justify-content: space-between;">
+                  <span>Prime de logement</span>
+                  <span style="font-weight: 500;">${formatCurrency(results.housingBonus)} FCFA</span>
+                </div>
+              ` : ''}
+              ${results.natureBenefits > 0 ? `
+                <div style="border-bottom: 1px solid #eee; padding: 12px; display: flex; justify-content: space-between;">
+                  <span>Avantages en nature</span>
+                  <span style="font-weight: 500;">${formatCurrency(results.natureBenefits)} FCFA</span>
+                </div>
+              ` : ''}
+              ${results.performanceBonus > 0 ? `
+                <div style="border-bottom: 1px solid #eee; padding: 12px; display: flex; justify-content: space-between;">
+                  <span>Prime de rendement</span>
+                  <span style="font-weight: 500;">${formatCurrency(results.performanceBonus)} FCFA</span>
+                </div>
+              ` : ''}
+              ${results.exceptionalBonus > 0 ? `
+                <div style="border-bottom: 1px solid #eee; padding: 12px; display: flex; justify-content: space-between;">
+                  <span>Prime exceptionnelle</span>
+                  <span style="font-weight: 500;">${formatCurrency(results.exceptionalBonus)} FCFA</span>
+                </div>
+              ` : ''}
+              <div style="padding: 12px; background: #f8f8f8; display: flex; justify-content: space-between;">
+                <span style="font-weight: bold;">Total Brut</span>
+                <span style="font-weight: bold;">${formatCurrency(results.totalGross)} FCFA</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Détail des cotisations -->
+          <div style="margin-bottom: 30px;">
+            <h2 style="font-size: 20px; font-weight: bold; margin-bottom: 15px; color: #16a34a;">Détail des cotisations sociales</h2>
+            <div style="border: 1px solid #eee; border-radius: 8px;">
+              ${country === 'benin' ? `
+                <!-- Cotisations CNSS Bénin -->
+                <div style="border-bottom: 1px solid #eee; padding: 12px;">
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                    <span>CNSS (3.6% plafonné à 160,000 FCFA)</span>
+                    <span style="color: #dc2626; font-weight: 500;">-${formatCurrency(results.socialContributionsEmployee)} FCFA</span>
+                  </div>
+                  <p style="font-size: 12px; color: #666;">Base de calcul : ${formatCurrency(Math.min(results.totalGross, 160000))} FCFA</p>
+                </div>
+              ` : `
+                <!-- Cotisations CNSS Togo -->
+                <div style="border-bottom: 1px solid #eee; padding: 12px;">
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                    <span>CNSS (4% du salaire brut)</span>
+                    <span style="color: #dc2626; font-weight: 500;">-${formatCurrency(results.socialContributionsEmployee)} FCFA</span>
+                  </div>
+                  <p style="font-size: 12px; color: #666;">Base de calcul : ${formatCurrency(results.totalGross)} FCFA</p>
+                </div>
+              `}
+            </div>
+          </div>
+
+          <!-- Détail de l'impôt sur le revenu -->
+          <div style="margin-bottom: 30px;">
+            <h2 style="font-size: 20px; font-weight: bold; margin-bottom: 15px; color: #16a34a;">
+              Calcul de l'impôt sur le revenu (${country === 'benin' ? 'ITS' : 'IRPP'})
+            </h2>
+            <div style="border: 1px solid #eee; border-radius: 8px;">
+              <div style="border-bottom: 1px solid #eee; padding: 12px;">
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                  <span>Base imposable avant quotient familial</span>
+                  <span style="font-weight: 500;">${formatCurrency(results.taxableIncomeITS_IRPP)} FCFA</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                  <span>Nombre de parts</span>
+                  <span style="font-weight: 500;">${results.quotientFamilialParts}</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                  <span>Base imposable par part</span>
+                  <span style="font-weight: 500;">${formatCurrency(results.taxableIncomeITS_IRPP / results.quotientFamilialParts)} FCFA</span>
+                </div>
+                <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                  <span>Impôt calculé par part</span>
+                  <span style="font-weight: 500;">${formatCurrency(results.incomeTax / results.quotientFamilialParts)} FCFA</span>
+                </div>
+              </div>
+              <div style="padding: 12px; background: #f8f8f8;">
+                <div style="display: flex; justify-content: space-between;">
+                  <span style="font-weight: bold;">Montant total de l'impôt (${country === 'benin' ? 'ITS' : 'IRPP'})</span>
+                  <span style="color: #dc2626; font-weight: bold;">-${formatCurrency(results.incomeTax)} FCFA</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Résultat final -->
+          <div style="margin-bottom: 30px; background: #f0fdf4; padding: 20px; border-radius: 8px; border: 2px solid #16a34a;">
+            <h2 style="font-size: 20px; font-weight: bold; margin-bottom: 15px; color: #16a34a;">Résultat final</h2>
+            <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+              <div>
+                <p style="color: #666; margin-bottom: 5px;">Salaire brut total</p>
+                <p style="font-size: 18px; font-weight: 500;">${formatCurrency(results.totalGross)} FCFA</p>
+              </div>
+              <div>
+                <p style="color: #666; margin-bottom: 5px;">Total des cotisations</p>
+                <p style="font-size: 18px; font-weight: 500; color: #dc2626;">
+                  -${formatCurrency(results.socialContributionsEmployee + results.otherEmployeeDeductions + results.incomeTax)} FCFA
+                </p>
+              </div>
+            </div>
+            <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #16a34a;">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-size: 20px; font-weight: bold;">Salaire net</span>
+                <span style="font-size: 24px; font-weight: bold; color: #16a34a;">
+                  ${formatCurrency(results.netSalary)} FCFA
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Coût employeur - nouvelle section -->
+          <div style="margin-bottom: 30px;">
+            <h2 style="font-size: 20px; font-weight: bold; margin-bottom: 15px; color: #16a34a;">Coût total employeur</h2>
+            <div style="border: 1px solid #eee; border-radius: 8px;">
+              ${country === "benin" ? `
+                <div style="border-bottom: 1px solid #eee; padding: 12px;">
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                    <span>CNSS Vieillesse (10%)</span>
+                    <span style="font-weight: 500;">+${formatCurrency(Math.min(results.totalGross, 160000) * 0.10)} FCFA</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                    <span>CNSS Prestations Familiales (6%)</span>
+                    <span style="font-weight: 500;">+${formatCurrency(Math.min(results.totalGross, 160000) * 0.06)} FCFA</span>
+                  </div>
+                  <div style="display: flex; justify-content: space-between">
+                    <span>CNSS Accidents du Travail (0.5%)</span>
+                    <span style="font-weight: 500;">+${formatCurrency(Math.min(results.totalGross, 160000) * 0.005)} FCFA</span>
+                  </div>
+                </div>
+              ` : `
+                <div style="border-bottom: 1px solid #eee; padding: 12px;">
+                  <div style="display: flex; justify-content: space-between; margin-bottom: 8px;">
+                    <span>CNSS Patronale (17.07%)</span>
+                    <span style="font-weight: 500;">+${formatCurrency(results.employerSocialContributions)} FCFA</span>
+                  </div>
+                  <p style="font-size: 12px; color: #666;">
+                    Inclut : Pensions, Prestations Familiales, Accidents du Travail
+                  </p>
+                </div>
+              `}
+              <div style="padding: 12px; background: #f8f8f8;">
+                <div style="display: flex; justify-content: space-between;">
+                  <span style="font-weight: bold;">Coût total employeur</span>
+                  <span style="font-weight: bold;">${formatCurrency(results.totalEmployerCost)} FCFA</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Pied de page -->
+          <div style="margin-top: 40px; text-align: center; color: #666; font-size: 12px; border-top: 1px solid #eee; padding-top: 20px;">
+            <p style="margin-bottom: 5px;">Document généré le ${formatDate(new Date())}</p>
+            <p style="margin-bottom: 5px;">PayeAfrique - www.payeafrique.com</p>
+            <p style="margin-bottom: 15px;">Ce document est fourni à titre indicatif et ne constitue pas un document officiel.</p>
+            <div style="background-color: #fff8e6; border: 1px solid #ffd77a; border-radius: 4px; padding: 12px; text-align: left; margin-top: 20px;">
+              <p style="color: #664d03; font-size: 11px; line-height: 1.4;">
+                <strong>Avertissement important :</strong> Cette simulation est donnée à titre indicatif. 
+                Les taux et barèmes fiscaux (${country === 'benin' ? 'ITS' : 'IRPP'}, CNSS${country === 'togo' ? ', AMU' : ''}) 
+                sont basés sur les informations disponibles et peuvent nécessiter une vérification avec les lois fiscales 
+                officielles les plus récentes ${country === 'benin' ? 'du Bénin' : 'du Togo'}. Pour une analyse précise 
+                et adaptée à votre situation spécifique, consultez un expert-comptable ou un conseiller fiscal.
+              </p>
+            </div>
+          </div>
+        </div>
+      `;
+
+      // Capturer le contenu en image
+      const canvas = await html2canvas(tempContainer, {
+        scale: 2,
+        logging: false,
+        useCORS: true,
+        backgroundColor: '#ffffff'
+      });
+
+      // Créer le PDF
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'px',
+        format: 'a4'
+      });
+
+      const imgWidth = pdf.internal.pageSize.getWidth();
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      pdf.addImage(
+        canvas.toDataURL('image/png'),
+        'PNG',
+        0,
+        0,
+        imgWidth,
+        imgHeight
+      );
+
+      // Télécharger le PDF
+      pdf.save(`simulation-salaire-${country}-${formatDate(new Date()).replace(/[/:]/g, '-')}.pdf`);
+
+      toast({
+        title: "Succès",
+        description: "Le PDF a été téléchargé avec succès",
+        variant: "default"
+      });
+    } catch (error) {
+      console.error('Erreur lors de la génération du PDF:', error);
+      toast({
+        title: "Erreur",
+        description: "Une erreur s'est produite lors de la génération du PDF. Veuillez réessayer.",
+        variant: "destructive"
+      });
+    } finally {
+      const tempContainer = document.querySelector('div[style*="-9999px"]');
+      if (tempContainer) {
+        document.body.removeChild(tempContainer);
+      }
+    }
   };
 
-  const handleShare = () => {
-    setShowShareModal(true);
+  const handleSendEmail = async () => {
+    if (!results || !isAuthenticated || !user?.email) {
+      toast({
+        title: "Erreur",
+        description: "Vous devez être connecté pour recevoir le PDF par email",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    try {
+      setIsSendingEmail(true);
+      
+      // Générer le PDF
+      const tempContainer = document.createElement('div');
+      tempContainer.style.position = 'absolute';
+      tempContainer.style.left = '-9999px';
+      tempContainer.style.width = '800px';
+      document.body.appendChild(tempContainer);
+
+      // ... Même code HTML template que dans handleDownloadPDF ...
+
+      const canvas = await html2canvas(tempContainer, {
+        scale: 2,
+        logging: false,
+        useCORS: true,
+        backgroundColor: '#ffffff'
+      });
+
+      const pdf = new jsPDF({
+        orientation: 'portrait',
+        unit: 'px',
+        format: 'a4'
+      });
+
+      const imgWidth = pdf.internal.pageSize.getWidth();
+      const imgHeight = (canvas.height * imgWidth) / canvas.width;
+
+      pdf.addImage(
+        canvas.toDataURL('image/png'),
+        'PNG',
+        0,
+        0,
+        imgWidth,
+        imgHeight
+      );
+
+      // Convertir le PDF en base64
+      const pdfBase64 = pdf.output('datauristring');
+
+      // Envoyer l'email
+      await emailService.sendSimulationPDF(
+        user.email,
+        pdfBase64,
+        {
+          country,
+          grossSalary: results.grossSalaryInput,
+          netSalary: results.netSalary,
+          date: new Date().toLocaleDateString('fr-FR', {
+            year: 'numeric',
+            month: 'long',
+            day: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+          })
+        }
+      );
+
+      toast({
+        title: "Succès",
+        description: "Le PDF a été envoyé à votre adresse email",
+        variant: "default"
+      });
+    } catch (error) {
+      console.error('Erreur lors de l\'envoi de l\'email:', error);
+      toast({
+        title: "Erreur",
+        description: "Erreur lors de l'envoi de l'email. Veuillez réessayer.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsSendingEmail(false);
+      const tempContainer = document.querySelector('div[style*="-9999px"]');
+      if (tempContainer) {
+        document.body.removeChild(tempContainer);
+      }
+    }
   };
 
   // Fonction pour calculer les résultats d'un scénario
   const calculateScenario = (scenario: any) => {
-    const salaireBrut = scenario.grossSalary + scenario.transportBonus + scenario.housingBonus;
-    
-    // Calcul des cotisations sociales
-    const cotisationsSociales = calculateCNSS(salaireBrut, scenario.country);
-    
-    // Calcul des frais professionnels
-    const fraisPro = calculateFraisPro(salaireBrut, cotisationsSociales);
-    
-    // Base imposable
-    const baseImposable = salaireBrut - cotisationsSociales - fraisPro;
-    
-    // Calcul de l'impôt
-    const impot = calculateImpot(salaireBrut, scenario.country, scenario.familyStatus, parseInt(scenario.children));
-    
-    // Calcul du salaire net
-    const salaireNet = salaireBrut - cotisationsSociales - impot;
-    
-    return {
-      salaireBrut,
-      cotisationsSociales,
-      fraisPro,
-      baseImposable,
-      impot,
-      salaireNet
-    };
+    if (!scenario.grossSalary) {
+      toast({
+        title: "Erreur",
+        description: "Veuillez saisir un salaire brut pour les deux scénarios",
+        variant: "destructive"
+      });
+      return null;
+    }
+
+    try {
+      // Conversion et validation des bonus
+      const transportBonusValue = scenario.transportBonus || 0;
+      const housingBonusValue = scenario.housingBonus || 0;
+      const natureBenefitsValue = scenario.natureBenefits || 0;
+      const performanceBonusValue = scenario.performanceBonus || 0;
+      const exceptionalBonusValue = scenario.exceptionalBonus || 0;
+
+      // Salaire brut total (incluant les primes)
+      const salaireBrut = scenario.grossSalary + transportBonusValue + housingBonusValue + 
+                         natureBenefitsValue + performanceBonusValue + exceptionalBonusValue;
+      
+      // Calcul des cotisations sociales
+      const cotisationsSociales = calculateCNSS(salaireBrut, scenario.country);
+      
+      // Calcul des frais professionnels
+      const fraisPro = calculateFraisPro(salaireBrut, cotisationsSociales);
+      
+      // Base imposable
+      const baseImposable = salaireBrut - cotisationsSociales - fraisPro;
+      
+      // Calcul de l'impôt selon le pays
+      const impot = scenario.country === "benin"
+        ? calculateITSBenin(salaireBrut)
+        : calculateIRPPTogo(baseImposable);
+      
+      // Calcul du salaire net
+      const salaireNet = salaireBrut - cotisationsSociales - impot;
+      
+      // Calcul des charges patronales
+      const chargesPatronales = scenario.country === "benin"
+        ? { total: Math.round(salaireBrut * BENIN.CNSS_PATRONAL) }
+        : calculateChargesPatronalesTogo(salaireBrut);
+
+      return {
+        salaireBrut: scenario.grossSalary,
+        totalGross: salaireBrut,
+        salaireNet,
+        netSalary: salaireNet,
+        cnss: cotisationsSociales,
+        socialContributionsEmployee: cotisationsSociales,
+        fraisPro,
+        impot,
+        incomeTax: impot,
+        baseImposable,
+        taxableIncomeITS_IRPP: baseImposable,
+        chargesPatronales,
+        employerSocialContributions: chargesPatronales.total,
+        totalEmployerCost: salaireBrut + chargesPatronales.total,
+        quotientFamilialParts: 1,
+        avantages: {
+          transport: transportBonusValue,
+          logement: housingBonusValue,
+          nature: natureBenefitsValue,
+          performance: performanceBonusValue,
+          exceptionnel: exceptionalBonusValue
+        }
+      };
+    } catch (error) {
+      console.error('Erreur lors du calcul du scénario:', error);
+      toast({
+        title: "Erreur",
+        description: "Une erreur est survenue lors du calcul du scénario",
+        variant: "destructive"
+      });
+      return null;
+    }
   };
 
   // Fonction pour comparer les scénarios
   const compareScenarios = () => {
+    // Validation des entrées
+    if (!scenario1.grossSalary || !scenario2.grossSalary) {
+      toast({
+        title: "Erreur",
+        description: "Veuillez saisir un salaire brut pour les deux scénarios",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (!scenario1.country || !scenario2.country) {
+      toast({
+        title: "Erreur",
+        description: "Veuillez sélectionner un pays pour les deux scénarios",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Calcul des résultats pour chaque scénario
     const results1 = calculateScenario(scenario1);
     const results2 = calculateScenario(scenario2);
+
+    if (!results1 || !results2) {
+      return; // Les messages d'erreur sont déjà affichés par calculateScenario
+    }
     
+    // Mise à jour des états avec les résultats
     setScenario1({ ...scenario1, results: results1 });
     setScenario2({ ...scenario2, results: results2 });
+
+    // Notification de succès
+    toast({
+      title: "Succès",
+      description: "Les scénarios ont été calculés et comparés",
+      variant: "default"
+    });
   };
 
   // Fonction pour mettre à jour un scénario
@@ -655,41 +1083,45 @@ const Simulation = () => {
         employee.housingBonus + 
         employee.natureBenefits + 
         employee.performanceBonus;
+      
       const cotisationsSociales = calculateCNSS(salaireBrut, country);
       const fraisPro = calculateFraisPro(salaireBrut, cotisationsSociales);
       const baseImposable = salaireBrut - cotisationsSociales - fraisPro;
-      const impot = calculateImpot(salaireBrut, country, employee.familyStatus, parseInt(employee.children));
+      
+      // Calcul de l'impôt selon le pays
+      const impot = country === "benin"
+        ? calculateITSBenin(salaireBrut)
+        : calculateIRPPTogo(baseImposable);
+      
       const salaireNet = salaireBrut - cotisationsSociales - impot;
 
       return {
         ...employee,
         results: {
-          salaireBrut,
-          cotisationsSociales,
+          salaireBrut: employee.grossSalary,
+          totalGross: salaireBrut,
+          salaireNet,
+          netSalary: salaireNet,
+          cnss: cotisationsSociales,
+          socialContributionsEmployee: cotisationsSociales,
           fraisPro,
-          baseImposable,
           impot,
-          salaireNet
+          incomeTax: impot,
+          baseImposable,
+          taxableIncomeITS_IRPP: baseImposable,
+          quotientFamilialParts: 1,
+          avantages: {
+            transport: employee.transportBonus || 0,
+            logement: employee.housingBonus || 0,
+            nature: employee.natureBenefits || 0,
+            performance: employee.performanceBonus || 0,
+            exceptionnel: employee.exceptionalBonus || 0
+          }
         }
       };
     });
 
     setEmployees(updatedEmployees);
-
-    // Calculer les totaux
-    const totals = updatedEmployees.reduce((acc, employee) => ({
-      totalGross: acc.totalGross + employee.results.salaireBrut,
-      totalNet: acc.totalNet + employee.results.salaireNet,
-      totalSocialCharges: acc.totalSocialCharges + employee.results.cotisationsSociales,
-      totalTax: acc.totalTax + employee.results.impot
-    }), {
-      totalGross: 0,
-      totalNet: 0,
-      totalSocialCharges: 0,
-      totalTax: 0
-    });
-
-    setMultipleResults(totals);
   };
 
   const handleDownloadMultiplePDF = async () => {
@@ -892,62 +1324,29 @@ const Simulation = () => {
     }
   };
 
-  const calculateGrossToNetBenin = (grossSalary: number): SalaryResult => {
-    const ipres = grossSalary * 0.08;
-    const cnss = grossSalary * 0.07;
-    const irpp = calculateIRPPBenin(grossSalary);
-    const netSalary = grossSalary - ipres - cnss - irpp;
-
-    return {
-      grossSalary: Math.round(grossSalary),
-      ipres: Math.round(ipres),
-      cnss: Math.round(cnss),
-      irpp: Math.round(irpp),
-      netSalary: Math.round(netSalary)
-    };
-  };
-
-  const calculateGrossToNetTogo = (grossSalary: number): SalaryResult => {
-    const ipres = grossSalary * 0.08;
-    const cnss = grossSalary * 0.07;
-    const irpp = calculateIRPPTogo(grossSalary);
-    const netSalary = grossSalary - ipres - cnss - irpp;
-
-    return {
-      grossSalary: Math.round(grossSalary),
-      ipres: Math.round(ipres),
-      cnss: Math.round(cnss),
-      irpp: Math.round(irpp),
-      netSalary: Math.round(netSalary)
-    };
-  };
-
-  const calculateNetToGrossBenin = (netSalary: number): SalaryResult => {
-    // Estimation initiale du brut (environ 30% plus élevé que le net)
-    let grossSalary = netSalary * 1.3;
+  const calculateNetToGross = (netSalary: number): SalaryResult => {
+    // On commence avec une estimation plus précise du salaire brut
+    let grossSalary = netSalary * 1.4; // Augmenté de 40% pour tenir compte des charges
     let calculatedNet = 0;
-    let maxAttempts = 50;
+    let maxAttempts = 100;
     let attempts = 0;
 
     while (attempts < maxAttempts) {
-      // Calculer les cotisations
       const ipres = grossSalary * 0.08;
       const cnss = grossSalary * 0.07;
-      const irpp = calculateIRPPBenin(grossSalary);
-      
-      // Calculer le net
+      const irpp = calculateIRPP(grossSalary);
       calculatedNet = grossSalary - ipres - cnss - irpp;
 
-      // Si le net calculé est proche du net souhaité, on a trouvé notre brut
+      // Si on est très proche du salaire net souhaité, on arrête
       if (Math.abs(calculatedNet - netSalary) < 1) {
         break;
       }
 
-      // Ajuster le brut
+      // Ajustement plus précis du salaire brut
       if (calculatedNet < netSalary) {
-        grossSalary += (netSalary - calculatedNet);
+        grossSalary += (netSalary - calculatedNet) * 0.8;
       } else {
-        grossSalary -= (calculatedNet - netSalary);
+        grossSalary -= (calculatedNet - netSalary) * 0.8;
       }
 
       attempts++;
@@ -957,127 +1356,9 @@ const Simulation = () => {
       grossSalary: Math.round(grossSalary),
       ipres: Math.round(grossSalary * 0.08),
       cnss: Math.round(grossSalary * 0.07),
-      irpp: Math.round(calculateIRPPBenin(grossSalary)),
+      irpp: Math.round(calculateIRPP(grossSalary)),
       netSalary: Math.round(calculatedNet)
     };
-  };
-
-  const calculateNetToGrossTogo = (netSalary: number): SalaryResult => {
-    // Estimation initiale du brut (environ 30% plus élevé que le net)
-    let grossSalary = netSalary * 1.3;
-    let calculatedNet = 0;
-    let maxAttempts = 50;
-    let attempts = 0;
-
-    while (attempts < maxAttempts) {
-      // Calculer les cotisations
-      const ipres = grossSalary * 0.08;
-      const cnss = grossSalary * 0.07;
-      const irpp = calculateIRPPTogo(grossSalary);
-      
-      // Calculer le net
-      calculatedNet = grossSalary - ipres - cnss - irpp;
-
-      // Si le net calculé est proche du net souhaité, on a trouvé notre brut
-      if (Math.abs(calculatedNet - netSalary) < 1) {
-        break;
-      }
-
-      // Ajuster le brut
-      if (calculatedNet < netSalary) {
-        grossSalary += (netSalary - calculatedNet);
-      } else {
-        grossSalary -= (calculatedNet - netSalary);
-      }
-
-      attempts++;
-    }
-
-    return {
-      grossSalary: Math.round(grossSalary),
-      ipres: Math.round(grossSalary * 0.08),
-      cnss: Math.round(grossSalary * 0.07),
-      irpp: Math.round(calculateIRPPTogo(grossSalary)),
-      netSalary: Math.round(calculatedNet)
-    };
-  };
-
-  const handleCalculate = () => {
-    if (!salary || isNaN(Number(salary))) {
-      toast.error('Veuillez entrer un montant valide');
-      return;
-    }
-
-    const salaryAmount = Number(salary);
-    console.log('Type de calcul:', calculationType);
-    console.log('Pays:', country);
-    console.log('Montant saisi:', salaryAmount);
-
-    try {
-      let result: SalaryResult;
-
-      if (calculationType === 'gross-to-net') {
-        if (country === 'benin') {
-          result = calculateGrossToNetBenin(salaryAmount);
-        } else {
-          result = calculateGrossToNetTogo(salaryAmount);
-        }
-      } else {
-        if (country === 'benin') {
-          result = calculateNetToGrossBenin(salaryAmount);
-        } else {
-          result = calculateNetToGrossTogo(salaryAmount);
-        }
-      }
-
-      console.log('Résultat du calcul:', result);
-      setResult(result);
-    } catch (error) {
-      console.error('Erreur de calcul:', error);
-      toast.error('Une erreur est survenue lors du calcul');
-    }
-  };
-
-  const calculateIRPPBenin = (grossSalary: number): number => {
-    const annualSalary = grossSalary * 12;
-    let irpp = 0;
-
-    if (annualSalary <= 300000) {
-      irpp = annualSalary * 0.05;
-    } else if (annualSalary <= 600000) {
-      irpp = 15000 + (annualSalary - 300000) * 0.10;
-    } else if (annualSalary <= 1200000) {
-      irpp = 45000 + (annualSalary - 600000) * 0.15;
-    } else if (annualSalary <= 2400000) {
-      irpp = 135000 + (annualSalary - 1200000) * 0.20;
-    } else if (annualSalary <= 4800000) {
-      irpp = 375000 + (annualSalary - 2400000) * 0.25;
-    } else {
-      irpp = 975000 + (annualSalary - 4800000) * 0.30;
-    }
-
-    return irpp / 12; // Retourner l'IRPP mensuel
-  };
-
-  const calculateIRPPTogo = (grossSalary: number): number => {
-    const annualSalary = grossSalary * 12;
-    let irpp = 0;
-
-    if (annualSalary <= 300000) {
-      irpp = annualSalary * 0.05;
-    } else if (annualSalary <= 600000) {
-      irpp = 15000 + (annualSalary - 300000) * 0.10;
-    } else if (annualSalary <= 1200000) {
-      irpp = 45000 + (annualSalary - 600000) * 0.15;
-    } else if (annualSalary <= 2400000) {
-      irpp = 135000 + (annualSalary - 1200000) * 0.20;
-    } else if (annualSalary <= 4800000) {
-      irpp = 375000 + (annualSalary - 2400000) * 0.25;
-    } else {
-      irpp = 975000 + (annualSalary - 4800000) * 0.30;
-    }
-
-    return irpp / 12; // Retourner l'IRPP mensuel
   };
 
   return (
@@ -2157,15 +2438,13 @@ const Simulation = () => {
                 </CardHeader>
                 <CardContent>
                   {!isAuthenticated ? (
-                    <div className="text-center p-10">
-                  <div className="mb-4">
-                    <FileText className="h-16 w-16 mx-auto text-gray-300" />
-                  </div>
-                      <h3 className="text-xl font-medium mb-2">Connectez-vous pour accéder à l'historique</h3>
-                  <p className="text-gray-500 mb-6">
-                        Enregistrez vos simulations et retrouvez-les à tout moment
-                  </p>
-                  <Button variant="outline">Se connecter</Button>
+                    <div className="text-center p-8">
+                      <p className="text-gray-600 dark:text-gray-400 mb-4">
+                        Connectez-vous pour accéder à votre historique de simulations
+                      </p>
+                      <Button variant="outline" onClick={() => navigate("/login")}>
+                        Se connecter
+                      </Button>
                     </div>
                   ) : isLoadingHistory ? (
                     <div className="flex items-center justify-center p-8">
@@ -2533,14 +2812,52 @@ const Simulation = () => {
                         </div>
                       </div>
 
-                      <div className="flex space-x-3 mt-6">
-                        <Button variant="outline" className="flex-1" onClick={handleDownloadPDF}>
-                          <DownloadIcon className="mr-2 h-4 w-4" />
-                          Télécharger PDF
+                      <div className="flex space-x-1 mt-6">
+                        <Button
+                          variant="outline"
+                          onClick={handleDownloadPDF}
+                          disabled={!results || !isAuthenticated}
+                          className="w-full sm:w-auto"
+                          title={!isAuthenticated ? "Connectez-vous pour télécharger le PDF" : ""}
+                        >
+                          <DownloadIcon className="w-4 h-4 mr-2" />
+                          {isAuthenticated ? 'Télécharger PDF' : 'Connectez-vous pour télécharger'}
                         </Button>
-                        <Button variant="outline" className="flex-1" onClick={handleShare}>
-                          <Share2 className="mr-2 h-4 w-4" />
-                          Partager
+                        <Button
+                          variant="outline"
+                          onClick={handleSendEmail}
+                          disabled={!results || !isAuthenticated || isSendingEmail}
+                          className="flex-1"
+                        >
+                          {isSendingEmail ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-current mr-2" />
+                              Envoi en cours...
+                            </>
+                          ) : (
+                            <>
+                              <Mail className="mr-2 h-4 w-4" />
+                              {isAuthenticated ? 'Recevoir par email' : 'Connectez-vous pour recevoir par email'}
+                            </>
+                          )}
+                        </Button>
+                        <Button
+                          variant="outline"
+                          onClick={saveSimulation}
+                          disabled={!results || !isAuthenticated || isSavingSimulation}
+                          className="flex-1"
+                        >
+                          {isSavingSimulation ? (
+                            <>
+                              <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-current mr-2" />
+                              Sauvegarde...
+                            </>
+                          ) : (
+                            <>
+                              <History className="mr-2 h-4 w-4" />
+                              {isAuthenticated ? 'Sauvegarder' : 'Connectez-vous pour sauvegarder'}
+                            </>
+                          )}
                         </Button>
                       </div>
                     </div>
@@ -2603,93 +2920,6 @@ const Simulation = () => {
           )}
         </div>
       </div>
-
-      {/* Modal de partage */}
-      <Dialog open={showShareModal} onOpenChange={setShowShareModal}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Partager la simulation</DialogTitle>
-            <DialogDescription>
-              Envoyez cette simulation par email
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="email" className="text-right">
-                Email
-              </Label>
-              <Input
-                id="email"
-                type="email"
-                value={emailAddress}
-                onChange={(e) => setEmailAddress(e.target.value)}
-                className="col-span-3"
-                placeholder="exemple@email.com"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowShareModal(false)}>
-              Annuler
-            </Button>
-            <Button onClick={handleSendEmail}>
-              <Mail className="mr-2 h-4 w-4" />
-              Envoyer
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
-      {result && (
-        <div className="mt-8 p-6 bg-white rounded-lg shadow-lg">
-          <h3 className="text-xl font-semibold mb-4">Résultats du calcul</h3>
-          
-          <div className="space-y-4">
-            <div className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
-              <span className="font-medium">
-                {calculationType === 'gross-to-net' ? 'Salaire Brut' : 'Salaire Net'}
-              </span>
-              <span className="text-lg font-semibold">
-                {calculationType === 'gross-to-net' ? result.grossSalary : result.netSalary} FCFA
-              </span>
-            </div>
-
-            <div className="space-y-2">
-              <h4 className="font-medium text-gray-700">Détail des cotisations</h4>
-              <div className="space-y-2">
-                <div className="flex justify-between items-center p-3 bg-gray-50 rounded">
-                  <span>IPRES (8%)</span>
-                  <span>{result.ipres} FCFA</span>
-                </div>
-                <div className="flex justify-between items-center p-3 bg-gray-50 rounded">
-                  <span>CNSS (7%)</span>
-                  <span>{result.cnss} FCFA</span>
-                </div>
-                <div className="flex justify-between items-center p-3 bg-gray-50 rounded">
-                  <span>IRPP</span>
-                  <span>{result.irpp} FCFA</span>
-                </div>
-              </div>
-            </div>
-
-            <div className="flex justify-between items-center p-4 bg-blue-50 rounded-lg">
-              <span className="font-medium">
-                {calculationType === 'gross-to-net' ? 'Salaire Net' : 'Salaire Brut'}
-              </span>
-              <span className="text-lg font-semibold text-blue-600">
-                {calculationType === 'gross-to-net' ? result.netSalary : result.grossSalary} FCFA
-              </span>
-            </div>
-
-            <div className="flex justify-between items-center p-4 bg-gray-50 rounded-lg">
-              <span className="font-medium">Total des cotisations</span>
-              <span className="text-lg font-semibold text-red-600">
-                {result.ipres + result.cnss + result.irpp} FCFA
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
     </Layout>
   );
 };

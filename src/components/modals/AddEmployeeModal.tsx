@@ -8,7 +8,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Form, FormControl, FormField, FormItem, FormLabel } from '@/components/ui/form';
-import { Employee } from '@/types/payroll';
+import { Employee, Department } from '@/types/payroll';
 
 const employeeFormSchema = z.object({
   name: z.string().min(2, 'Le nom doit contenir au moins 2 caractères'),
@@ -28,12 +28,14 @@ interface AddEmployeeModalProps {
   isOpen: boolean;
   onClose: () => void;
   onAddEmployee: (employee: Omit<Employee, 'id'>) => void;
+  departments: Department[];
 }
 
 const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({
   isOpen,
   onClose,
   onAddEmployee,
+  departments,
 }) => {
   const form = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeFormSchema),
@@ -88,10 +90,11 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({
                       <SelectValue placeholder="Sélectionner un département" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="Technique">Technique</SelectItem>
-                      <SelectItem value="Commercial">Commercial</SelectItem>
-                      <SelectItem value="Administratif">Administratif</SelectItem>
-                      <SelectItem value="Direction">Direction</SelectItem>
+                      {departments.map((dept) => (
+                        <SelectItem key={dept.id} value={dept.name}>
+                          {dept.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </FormItem>

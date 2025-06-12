@@ -330,6 +330,57 @@ const SimulationEnterprise = () => {
     toast.success("Simulation avancée lancée avec succès");
   };
 
+  // Calculer les données pour les graphiques
+  const calculateChartData = () => {
+    // Données pour le graphique de répartition de la masse salariale
+    const salaryDistributionData = [
+      { name: "Salaires bruts", value: stats.totalGrossSalary },
+      { name: "Cotisations sociales", value: stats.socialContributions },
+      { name: "Charges patronales", value: stats.totalGrossSalary * 0.225 },
+      { name: "Primes et avantages", value: stats.totalBenefits }
+    ];
+
+    // Données pour le graphique par département
+    const departmentData = employees.reduce((acc, emp) => {
+      const dept = acc.find(d => d.name === emp.department);
+      if (dept) {
+        dept.salary += emp.grossSalary;
+        dept.employees += 1;
+      } else {
+        acc.push({
+          name: emp.department,
+          salary: emp.grossSalary,
+          employees: 1
+        });
+      }
+      return acc;
+    }, [] as { name: string; salary: number; employees: number }[]);
+
+    // Données pour l'évolution mensuelle
+    const monthlyData = Array.from({ length: 6 }, (_, i) => {
+      const month = new Date(2024, i, 1).toLocaleString('fr-FR', { month: 'short' });
+      const monthEmployees = employees.filter(emp => {
+        // Simuler une croissance mensuelle
+        const growthFactor = 1 + (i * 0.02); // 2% de croissance par mois
+        return emp.grossSalary * growthFactor;
+      });
+      
+      return {
+        month,
+        salary: monthEmployees.reduce((sum, emp) => sum + emp.grossSalary, 0),
+        employees: monthEmployees.length
+      };
+    });
+
+    return {
+      salaryDistributionData,
+      departmentData,
+      monthlyData
+    };
+  };
+
+  const chartData = calculateChartData();
+
   if (isLoading) {
     return (
       <Layout>
@@ -464,12 +515,7 @@ const SimulationEnterprise = () => {
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                     <div className="h-72">
-                      <SalaryDistributionChart data={[
-                        { name: "Salaires bruts", value: stats.totalGrossSalary },
-                        { name: "Cotisations sociales", value: stats.totalGrossSalary * 0.0968 },
-                        { name: "Charges patronales", value: stats.totalGrossSalary * 0.225 },
-                        { name: "Primes et avantages", value: stats.totalGrossSalary * 0.1 }
-                      ]} />
+                      <SalaryDistributionChart data={chartData.salaryDistributionData} />
                     </div>
                     <div className="space-y-4">
                       <h3 className="text-lg font-medium">Analyse des coûts</h3>
@@ -541,11 +587,7 @@ const SimulationEnterprise = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="h-64">
-                    <DepartmentChart data={[
-                      { name: "Technique", salary: 1400000, employees: 2 },
-                      { name: "Commercial", salary: 650000, employees: 1 },
-                      { name: "Ressources Humaines", salary: 380000, employees: 1 }
-                    ]} />
+                    <DepartmentChart data={chartData.departmentData} />
                   </div>
                   
                   <div className="mt-4 space-y-2">
@@ -583,14 +625,7 @@ const SimulationEnterprise = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="h-64">
-                    <MonthlyEvolutionChart data={[
-                      { month: "Déc", salary: 2000000, employees: 3 },
-                      { month: "Jan", salary: 2100000, employees: 3 },
-                      { month: "Fév", salary: 2150000, employees: 3 },
-                      { month: "Mar", salary: 2200000, employees: 4 },
-                      { month: "Avr", salary: 2300000, employees: 4 },
-                      { month: "Mai", salary: 2430000, employees: 4 }
-                    ]} />
+                    <MonthlyEvolutionChart data={chartData.monthlyData} />
                   </div>
                   
                   <div className="mt-4">
@@ -901,11 +936,7 @@ const SimulationEnterprise = () => {
               </CardHeader>
               <CardContent>
                 <div className="h-72">
-                  <DepartmentChart data={[
-                    { name: "Technique", salary: 1400000, employees: 2 },
-                    { name: "Commercial", salary: 650000, employees: 1 },
-                    { name: "Ressources Humaines", salary: 380000, employees: 1 }
-                  ]} />
+                  <DepartmentChart data={chartData.departmentData} />
                 </div>
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
@@ -1237,20 +1268,7 @@ const SimulationEnterprise = () => {
                 </div>
                 
                 <div className="h-72">
-                  <BudgetProjectionChart data={[
-                    { month: "Mai 2025", salary: 2430000, employees: 4 },
-                    { month: "Juin 2025", salary: 2500000, employees: 4 },
-                    { month: "Juil 2025", salary: 2600000, employees: 5 },
-                    { month: "Août 2025", salary: 2700000, employees: 5 },
-                    { month: "Sept 2025", salary: 2800000, employees: 5 },
-                    { month: "Oct 2025", salary: 2900000, employees: 6 },
-                    { month: "Nov 2025", salary: 3000000, employees: 6 },
-                    { month: "Déc 2025", salary: 3100000, employees: 6 },
-                    { month: "Jan 2026", salary: 3200000, employees: 6 },
-                    { month: "Fév 2026", salary: 3300000, employees: 6 },
-                    { month: "Mar 2026", salary: 3400000, employees: 6 },
-                    { month: "Avr 2026", salary: 3500000, employees: 6 }
-                  ]} />
+                  <BudgetProjectionChart data={chartData.monthlyData} />
                 </div>
                 
                 <div className="space-y-4">

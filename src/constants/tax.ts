@@ -1,23 +1,137 @@
 // Constantes pour les calculs des frais professionnels
 export const FRAIS_PRO_RATE = 0.20; // 20% pour frais professionnels
 export const FRAIS_PRO_PLAFOND_MENSUEL = 84334; // Plafond mensuel exact pour le Togo
-export function calculateNetToBrutBenin(netSalary: number, familyStatus: string, childrenCount: number): number {
-  // Calcul du salaire brut à partir du net pour le Bénin
-  const cotisationsSociales = netSalary * BENIN.CNSS_SALARIAL;
-  const baseImposable = netSalary + cotisationsSociales;
-  const its = calculateITSBenin(baseImposable);
-  
-  return Math.round(netSalary + cotisationsSociales + its);
+export function calculateNetToBrutBenin(netSalary: number, familyStatus: string, childrenCount: number) {
+  // Initialisation des variables pour le calcul itératif
+  let salaireBrut = netSalary * 1.2; // Estimation initiale
+  let difference = Infinity;
+  let iterations = 0;
+  const maxIterations = 100;
+  const tolerance = 0.01;
+
+  // Calcul itératif pour trouver le salaire brut
+  while (Math.abs(difference) > tolerance && iterations < maxIterations) {
+    // Calcul des cotisations sociales
+    const cnss = Math.round(salaireBrut * BENIN.CNSS_SALARIAL);
+    
+    // Calcul de l'ITS
+    const its = calculateITSBenin(salaireBrut);
+    
+    // Calcul du net à partir du brut estimé
+    const netCalcule = salaireBrut - cnss - its;
+    
+    // Calcul de la différence avec le net souhaité
+    difference = netSalary - netCalcule;
+    
+    // Ajustement du brut
+    salaireBrut = salaireBrut + difference;
+    iterations++;
+  }
+
+  // Calcul final des composants avec le salaire brut trouvé
+  const cnss = Math.round(salaireBrut * BENIN.CNSS_SALARIAL);
+  const its = calculateITSBenin(salaireBrut);
+  const itsDetails = calculateITSBeninDetails(salaireBrut);
+
+  return {
+    salaireBrut: Math.round(salaireBrut),
+    details: {
+      cnss: cnss,
+      its: {
+        total: its,
+        details: itsDetails
+      }
+    }
+  };
 }
 
-export function calculateNetToBrutTogo(netSalary: number, familyStatus: string, childrenCount: number): number {
-  // Calcul du salaire brut à partir du net pour le Togo
-  const cotisationsSociales = netSalary * TOGO.CNSS_SALARIAL.TOTAL;
-  const fraisPro = calculateFraisPro(netSalary, cotisationsSociales);
-  const baseImposable = netSalary + cotisationsSociales + fraisPro;
+export function calculateNetToBrutTogo(netSalary: number, familyStatus: string = 'single', childrenCount: number = 0) {
+  // Initialisation des variables pour le calcul itératif
+  let salaireBrut = netSalary * 1.2; // Estimation initiale
+  let difference = Infinity;
+  let iterations = 0;
+  const maxIterations = 100;
+  const tolerance = 0.01;
+
+  // Calcul itératif pour trouver le salaire brut
+  while (Math.abs(difference) > tolerance && iterations < maxIterations) {
+    // Calcul des cotisations sociales
+    const cnss = Math.round(salaireBrut * TOGO.CNSS_SALARIAL.TOTAL);
+    const amu = Math.round(salaireBrut * TOGO.CNSS_SALARIAL.AMU);
+    
+    // Calcul des frais professionnels
+    const fraisPro = calculateFraisPro(salaireBrut, cnss);
+    
+    // Base imposable
+    const baseImposable = salaireBrut - cnss - fraisPro;
+    
+    // Calcul de l'IRPP
+    const irpp = calculateIRPPTogo(baseImposable);
+    
+    // Calcul du net à partir du brut estimé
+    const netCalcule = salaireBrut - cnss - irpp;
+    
+    // Calcul de la différence avec le net souhaité
+    difference = netSalary - netCalcule;
+    
+    // Ajustement du brut
+    salaireBrut = salaireBrut + difference;
+    iterations++;
+  }
+
+  // Calculs finaux avec le salaire brut trouvé
+  const cnss = Math.round(salaireBrut * TOGO.CNSS_SALARIAL.TOTAL);
+  const amu = Math.round(salaireBrut * TOGO.CNSS_SALARIAL.AMU);
+  const fraisPro = calculateFraisPro(salaireBrut, cnss);
+  const baseImposable = salaireBrut - cnss - fraisPro;
   const irpp = calculateIRPPTogo(baseImposable);
+  const irppDetails = calculateIRPPTogoDetails(baseImposable);
+
+  return {
+    salaireBrut: Math.round(salaireBrut),
+    details: {
+      cnss,
+      amu,
+      fraisPro,
+      baseImposable,
+      irpp: {
+        total: irpp,
+        details: irppDetails
+      }
+    }
+  };
+}
+
+// Fonction auxiliaire pour calculer les détails de l'IRPP par tranches
+function calculateIRPPTogoDetails(baseImposable: number) {
+  const details = [];
+  let montantRestant = baseImposable;
   
-  return Math.round(netSalary + cotisationsSociales + fraisPro + irpp);
+  for (const tranche of TOGO.IRPP_TRANCHES) {
+    if (montantRestant <= 0) break;
+    
+    const montantDansLaTranche = Math.min(
+      montantRestant,
+      tranche.max === Infinity ? montantRestant : tranche.max - tranche.min
+    );
+    
+    if (montantDansLaTranche > 0) {
+      details.push({
+        tranche: `${formatCurrency(tranche.min)} - ${tranche.max === Infinity ? '∞' : formatCurrency(tranche.max)}`,
+        taux: tranche.taux,
+        montant: Math.round(montantDansLaTranche * tranche.taux),
+        base: montantDansLaTranche
+      });
+    }
+    
+    montantRestant -= montantDansLaTranche;
+  }
+  
+  return details;
+}
+
+function formatCurrency(amount: number): string {
+  return new Intl.NumberFormat('fr-FR').format(amount);
 }
 
 // Constantes CNSS et AMU Togo 2024-2025
@@ -142,6 +256,70 @@ export const calculateITSBenin = (baseImposable: number): number => {
   return Math.round(its);
 };
 
+// Fonction auxiliaire pour calculer les détails de l'ITS par tranches
+function calculateITSBeninDetails(baseImposable: number) {
+  const details = [];
+  let montantRestant = baseImposable;
+  
+  // Tranche 1 : 0 à 60 000 FCFA (0%)
+  const tranche1 = Math.min(60000, montantRestant);
+  details.push({
+    tranche: "0 - 60 000",
+    taux: 0,
+    montant: 0,
+    base: tranche1
+  });
+  montantRestant -= tranche1;
+
+  // Tranche 2 : 60 001 à 150 000 FCFA (10%)
+  if (montantRestant > 0) {
+    const tranche2 = Math.min(90000, montantRestant);
+    details.push({
+      tranche: "60 001 - 150 000",
+      taux: 0.10,
+      montant: Math.round(tranche2 * 0.10),
+      base: tranche2
+    });
+    montantRestant -= tranche2;
+  }
+
+  // Tranche 3 : 150 001 à 250 000 FCFA (15%)
+  if (montantRestant > 0) {
+    const tranche3 = Math.min(100000, montantRestant);
+    details.push({
+      tranche: "150 001 - 250 000",
+      taux: 0.15,
+      montant: Math.round(tranche3 * 0.15),
+      base: tranche3
+    });
+    montantRestant -= tranche3;
+  }
+
+  // Tranche 4 : 250 001 à 500 000 FCFA (19%)
+  if (montantRestant > 0) {
+    const tranche4 = Math.min(250000, montantRestant);
+    details.push({
+      tranche: "250 001 - 500 000",
+      taux: 0.19,
+      montant: Math.round(tranche4 * 0.19),
+      base: tranche4
+    });
+    montantRestant -= tranche4;
+  }
+
+  // Tranche 5 : Au-delà de 500 000 FCFA (30%)
+  if (montantRestant > 0) {
+    details.push({
+      tranche: "Plus de 500 000",
+      taux: 0.30,
+      montant: Math.round(montantRestant * 0.30),
+      base: montantRestant
+    });
+  }
+
+  return details;
+}
+
 // Fonction principale pour calculer l'impôt
 export const calculateImpot = (
   salaireBrut: number, 
@@ -150,13 +328,23 @@ export const calculateImpot = (
   childrenCount: number
 ) => {
   if (country === "benin") {
+    // Pour le Bénin, on utilise l'ITS sur le salaire brut
     return calculateITSBenin(salaireBrut);
   } else {
-    // Pour le Togo
+    // Pour le Togo, on calcule l'IRPP sur la base imposable
     const cotisationsSociales = calculateCNSS(salaireBrut, country);
     const fraisPro = calculateFraisPro(salaireBrut, cotisationsSociales);
     const baseImposable = salaireBrut - cotisationsSociales - fraisPro;
-    return calculateIRPPTogo(baseImposable);
+    
+    // Calcul de l'IRPP avec réduction familiale pour le Togo
+    let irpp = calculateIRPPTogo(baseImposable);
+    
+    // Réduction familiale : 10% par enfant, maximum 30% (3 enfants)
+    if (childrenCount > 0) {
+      const reductionRate = Math.min(childrenCount * 0.1, 0.3);
+      irpp = Math.round(irpp * (1 - reductionRate));
+    }
+    
+    return irpp;
   }
-  
 }; 
