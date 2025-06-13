@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { Menu, X, Sun, Moon, User, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/hooks/use-theme";
@@ -19,14 +19,16 @@ const Header = () => {
   const { theme, setTheme } = useTheme();
   const location = useLocation();
   const { user, isAuthenticated, logout } = useAuthStore();
+  const navigate = useNavigate();
 
   const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
   const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
-  
+
   const isActive = (path: string) => location.pathname === path;
 
   const handleLogout = () => {
     logout();
+    navigate('/login');
     setIsMenuOpen(false);
   };
 
@@ -54,34 +56,32 @@ const Header = () => {
 
           <div className="hidden md:flex md:items-center md:space-x-6">
             <nav className="flex items-center space-x-6">
-              <Link 
-                to="/simulation" 
-                className={`transition-colors ${
-                  isActive("/simulation")
+              <Link
+                to="/simulation"
+                className={`transition-colors ${isActive("/simulation")
                     ? "text-benin-green font-medium"
                     : "text-gray-700 dark:text-gray-300 hover:text-benin-green dark:hover:text-benin-green"
-                }`}
+                  }`}
               >
                 Simulation
               </Link>
-              <Link 
-                to="/resources" 
-                className={`transition-colors ${
-                  isActive("/resources")
+              <Link
+                to="/resources"
+                className={`transition-colors ${isActive("/resources")
                     ? "text-benin-green font-medium"
                     : "text-gray-700 dark:text-gray-300 hover:text-benin-green dark:hover:text-benin-green"
-                }`}
+                  }`}
               >
                 Ressources
               </Link>
-              <Link 
-                to="/about" 
+              <Link
+                to="/about"
                 className="text-gray-700 dark:text-gray-300 hover:text-benin-green dark:hover:text-benin-green transition-colors"
               >
                 À propos
               </Link>
-              <Link 
-                to="/contact" 
+              <Link
+                to="/contact"
                 className="text-gray-700 dark:text-gray-300 hover:text-benin-green dark:hover:text-benin-green transition-colors"
               >
                 Contact
@@ -90,7 +90,7 @@ const Header = () => {
 
             <div className="flex items-center space-x-4">
               <CountrySelector />
-              
+
               <Button
                 variant="ghost"
                 size="icon"
@@ -99,7 +99,7 @@ const Header = () => {
               >
                 {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
               </Button>
-              
+
               {isAuthenticated ? (
                 <DropdownMenu>
                   <DropdownMenuTrigger asChild>
@@ -122,7 +122,7 @@ const Header = () => {
                         <span>Mon profil</span>
                       </Link>
                     </DropdownMenuItem>
-                    <DropdownMenuItem 
+                    <DropdownMenuItem
                       onClick={handleLogout}
                       className="text-red-600 focus:text-red-600 dark:text-red-400 dark:focus:text-red-400"
                     >
@@ -162,37 +162,35 @@ const Header = () => {
         <div className="md:hidden bg-white dark:bg-gray-900 shadow-lg animate-fade-in">
           <div className="px-4 pt-2 pb-4 space-y-4">
             <nav className="flex flex-col space-y-4">
-              <Link 
-                to="/simulation" 
-                className={`py-2 ${
-                  isActive("/simulation")
+              <Link
+                to="/simulation"
+                className={`py-2 ${isActive("/simulation")
                     ? "text-benin-green font-medium"
                     : "text-gray-700 dark:text-gray-300 hover:text-benin-green dark:hover:text-benin-green"
-                }`}
+                  }`}
                 onClick={() => setIsMenuOpen(false)}
               >
                 Simulation
               </Link>
-              <Link 
-                to="/resources" 
-                className={`py-2 ${
-                  isActive("/resources")
+              <Link
+                to="/resources"
+                className={`py-2 ${isActive("/resources")
                     ? "text-benin-green font-medium"
                     : "text-gray-700 dark:text-gray-300 hover:text-benin-green dark:hover:text-benin-green"
-                }`}
+                  }`}
                 onClick={() => setIsMenuOpen(false)}
               >
                 Ressources
               </Link>
-              <Link 
-                to="/about" 
+              <Link
+                to="/about"
                 className="text-gray-700 dark:text-gray-300 hover:text-benin-green dark:hover:text-benin-green py-2"
                 onClick={() => setIsMenuOpen(false)}
               >
                 À propos
               </Link>
-              <Link 
-                to="/contact" 
+              <Link
+                to="/contact"
                 className="text-gray-700 dark:text-gray-300 hover:text-benin-green dark:hover:text-benin-green py-2"
                 onClick={() => setIsMenuOpen(false)}
               >
@@ -212,7 +210,7 @@ const Header = () => {
                   {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
                 </Button>
               </div>
-              
+
               {isAuthenticated ? (
                 <div className="mt-4 space-y-3">
                   <div className="flex items-center gap-3 p-2 rounded-lg bg-gray-100 dark:bg-gray-800">

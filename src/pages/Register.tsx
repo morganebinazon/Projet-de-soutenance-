@@ -1,17 +1,7 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useForm, SubmitHandler } from "react-hook-form";
 import { z } from "zod";
-import { zodResolver } from "@hookform/resolvers/zod";
 import Layout from "@/components/layout/Layout";
-import {
-  Form,
-  FormControl,
-  FormField,
-  FormItem,
-  FormLabel,
-  FormMessage,
-} from "@/components/ui/form";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -49,9 +39,16 @@ const step3CompanySchema = z.object({
   phone: z.string().min(8, "Le numéro de téléphone est requis").transform((val) => val.trim()),
 });
 
-type RegisterFormValues = z.infer<typeof step1Schema> &
-  Partial<z.infer<typeof step3IndividualSchema>> &
-  Partial<z.infer<typeof step3CompanySchema>>;
+type RegisterFormValues = {
+  email: string;
+  password: string;
+  confirmPassword: string;
+  firstName?: string;
+  lastName?: string;
+  phone?: string;
+  companyName?: string;
+  taxId?: string;
+};
 
 const Register = () => {
   const { country } = useCountry();
@@ -59,143 +56,99 @@ const Register = () => {
   const [step, setStep] = useState<number>(1);
   const [accountType, setAccountType] = useState<"individual" | "company">("individual");
   const [isLoading, setIsLoading] = useState(false);
-
-  // Reference for first error input for focus management
-  const firstErrorRef = useRef<HTMLInputElement | null>(null);
-
-  const form = useForm<RegisterFormValues>({
-    resolver: zodResolver(
-      step === 1
-        ? step1Schema
-        : step === 3
-          ? accountType === "individual"
-            ? step3IndividualSchema
-            : step3CompanySchema
-          : z.object({})
-    ),
-    defaultValues: {
-      email: "",
-      password: "",
-      confirmPassword: "",
-      firstName: "",
-      lastName: "",
-      phone: "",
-      companyName: "",
-      taxId: "",
-    },
-    mode: "onBlur",
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [formValues, setFormValues] = useState<RegisterFormValues>({
+    email: "",
+    password: "",
+    confirmPassword: "",
+    firstName: "",
+    lastName: "",
+    phone: "",
+    companyName: "",
+    taxId: "",
   });
 
-  // On validation errors, focus first error field for better UX
-  useEffect(() => {
-    const firstErrorFieldName = Object.keys(form.formState.errors)[0] as keyof RegisterFormValues | undefined;
-    if (firstErrorFieldName) {
-      // Use setTimeout to wait for DOM render
-      setTimeout(() => {
-        const errorElement = document.querySelector(
-          `[name="${firstErrorFieldName}"]`
-        ) as HTMLElement | null;
-        errorElement?.focus();
-      }, 100);
-    }
-  }, [form.formState.errors]);
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const { name, value } = e.target;
+    setFormValues((prev) => ({
+      ...prev,
+      [name]: value,
+    }));
+  };
 
-  const onSubmit: SubmitHandler<RegisterFormValues> = async (formValues) => {
+  const validateStep = async (currentStep: number) => {
+    try {
+      if (currentStep === 1) {
+        await step1Schema.parseAsync(formValues);
+        return true;
+      } else if (currentStep === 3) {
+        if (accountType === "individual") {
+          await step3IndividualSchema.parseAsync(formValues);
+        } else {
+          await step3CompanySchema.parseAsync(formValues);
+        }
+        return true;
+      }
+      return true;
+    } catch (error: any) {
+      const newErrors: Record<string, string> = {};
+      error.errors.forEach((err: any) => {
+        const path = err.path[0];
+        newErrors[path] = err.message;
+      });
+      setErrors(newErrors);
+      
+      // Focus on first error field
+      const firstErrorField = Object.keys(newErrors)[0];
+      if (firstErrorField) {
+        setTimeout(() => {
+          const errorElement = document.querySelector(`[name="${firstErrorField}"]`) as HTMLElement;
+          errorElement?.focus();
+        }, 100);
+      }
+      
+      return false;
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     setIsLoading(true);
-    console.log("Form values before cleaning:", formValues);
-    // Cleaning inputs with fallback empty string
-    const cleanedValues = {
-      email: formValues.email?.trim().toLowerCase() || "",
-      password: formValues.password || "",
-      confirmPassword: formValues.confirmPassword || "",
-      firstName: formValues.firstName?.trim() || "",
-      lastName: formValues.lastName?.trim() || "",
-      phone: formValues.phone?.trim() || "",
-      companyName: formValues.companyName?.trim() || "",
-      taxId: formValues.taxId?.trim() || "",
-    };
 
     try {
       if (step === 1) {
-        // Validate step 1 inputs
-        await step1Schema.parseAsync(cleanedValues);
-        setStep(2);
+        const isValid = await validateStep(1);
+        if (isValid) {
+          setStep(2);
+        }
       } else if (step === 2) {
-        // Just progress step 2 to 3 with account type selected
         setStep(3);
       } else if (step === 3) {
-        // Validate step 3 inputs depending on account type
-        if (accountType === "individual") {
-          await step3IndividualSchema.parseAsync(cleanedValues);
-        } else {
-          await step3CompanySchema.parseAsync(cleanedValues);
+        const isValid = await validateStep(3);
+        if (isValid) {
+          const userData = {
+            name: accountType === "individual" 
+              ? `${formValues.firstName} ${formValues.lastName}` 
+              : formValues.companyName,
+            email: formValues.email,
+            password: formValues.password,
+            company: accountType === "company" ? formValues.companyName : undefined,
+            phone: formValues.phone,
+            country: country === "benin" ? "Bénin" : "Togo",
+            role: accountType === "company" ? "entreprise" : "client",
+          };
+
+          await useAuthStore.getState().register(userData);
+          toast.success("Inscription réussie !");
+          navigate("/login");
         }
-
-        // Prepare data for registration
-        const userData = {
-          name:
-            accountType === "individual"
-              ? `${cleanedValues.firstName} ${cleanedValues.lastName}`
-              : cleanedValues.companyName,
-          email: cleanedValues.email,
-          password: cleanedValues.password,
-          company: accountType === "company" ? cleanedValues.companyName : undefined,
-          phone: cleanedValues.phone,
-          country: country === "benin" ? "Bénin" : "Togo",
-          role: accountType === "company" ? "entreprise" : "client",
-        };
-
-        // Register user via auth store
-        await useAuthStore.getState().register(userData);
-
-        toast.success("Inscription réussie !");
-        navigate("/login");
       }
     } catch (error: any) {
-      if (error instanceof z.ZodError) {
-        // Set field errors explicitly to show messages next to inputs
-        error.errors.forEach(({ path, message }) => {
-          if (path.length > 0) {
-            form.setError(path[0] as keyof RegisterFormValues, { message });
-          } else {
-            toast.error(message);
-          }
-        });
-      } else {
-        console.error("Erreur lors de l'inscription:", error);
-        toast.error(error.message ?? "Erreur lors de l'inscription");
-      }
+      toast.error(error.message || "Une erreur est survenue");
     } finally {
       setIsLoading(false);
     }
   };
-
-  // Accessibility: role and aria-pressed for toggle buttons on account type
-  const AccountTypeButton = ({
-    type,
-    label,
-    icon,
-  }: {
-    type: "individual" | "company";
-    label: string;
-    icon: string;
-  }) => (
-    <Button
-      type="button"
-      variant={accountType === type ? "default" : "outline"}
-      aria-pressed={accountType === type}
-      role="switch"
-      className={`h-32 flex flex-col items-center justify-center ${accountType === type ? "bg-benin-green" : ""
-        }`}
-      onClick={() => setAccountType(type)}
-      aria-label={`${label} account type`}
-    >
-      <span aria-hidden="true" className="text-4xl mb-2">
-        {icon}
-      </span>
-      <span>{label}</span>
-    </Button>
-  );
 
   return (
     <Layout>
@@ -216,283 +169,283 @@ const Register = () => {
                 className={`w-2.5 h-2.5 rounded-full ${step >= i ? "bg-benin-green" : "bg-gray-300"
                   }`}
                 aria-current={step === i ? "step" : undefined}
-                aria-label={`Step ${i}`}
+                aria-label={`Étape ${i}`}
               />
             ))}
           </div>
 
-          <Form {...form}>
-            <form
-              onSubmit={form.handleSubmit(onSubmit)}
-              className="space-y-6"
-              noValidate
-              aria-live="polite"
-            >
-              {step === 1 && (
-                <>
-                  <FormField
-                    control={form.control}
+          <form onSubmit={handleSubmit} className="space-y-6" noValidate aria-live="polite">
+            {step === 1 && (
+              <>
+                <div className="space-y-2">
+                  <label htmlFor="email" className="text-sm font-medium leading-none">
+                    Email
+                  </label>
+                  <Input
+                    id="email"
                     name="email"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel htmlFor="email">Email</FormLabel>
-                        <FormControl>
-                          <Input
-                            id="email"
-                            type="email"
-                            placeholder="votre-email@example.com"
-                            {...field}
-                            disabled={isLoading}
-                            aria-invalid={!!form.formState.errors.email}
-                            aria-describedby="email-error"
-                          />
-                        </FormControl>
-                        <FormMessage id="email-error" />
-                      </FormItem>
-                    )}
+                    type="email"
+                    placeholder="votre-email@example.com"
+                    value={formValues.email}
+                    onChange={handleInputChange}
+                    disabled={isLoading}
+                    aria-invalid={!!errors.email}
+                    aria-describedby="email-error"
+                    autoComplete="email"
                   />
-
-                  <FormField
-                    control={form.control}
-                    name="password"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel htmlFor="password">Mot de passe</FormLabel>
-                        <FormControl>
-                          <Input
-                            id="password"
-                            type="password"
-                            placeholder="********"
-                            {...field}
-                            disabled={isLoading}
-                            aria-invalid={!!form.formState.errors.password}
-                            aria-describedby="password-error"
-                            autoComplete="new-password"
-                          />
-                        </FormControl>
-                        <FormMessage id="password-error" />
-                      </FormItem>
-                    )}
-                  />
-
-                  <FormField
-                    control={form.control}
-                    name="confirmPassword"
-                    render={({ field }) => (
-                      <FormItem>
-                        <FormLabel htmlFor="confirmPassword">
-                          Confirmer le mot de passe
-                        </FormLabel>
-                        <FormControl>
-                          <Input
-                            id="confirmPassword"
-                            type="password"
-                            placeholder="********"
-                            {...field}
-                            disabled={isLoading}
-                            aria-invalid={!!form.formState.errors.confirmPassword}
-                            aria-describedby="confirmPassword-error"
-                            autoComplete="new-password"
-                          />
-                        </FormControl>
-                        <FormMessage id="confirmPassword-error" />
-                      </FormItem>
-                    )}
-                  />
-                </>
-              )}
-
-              {step === 2 && (
-                <div className="space-y-4" role="radiogroup" aria-label="Type de compte">
-                  <h3 className="text-lg font-medium">Type de compte</h3>
-                  <div className="grid grid-cols-2 gap-4">
-                    <AccountTypeButton type="individual" label="Individuel" icon="👤" />
-                    <AccountTypeButton type="company" label="Entreprise" icon="🏢" />
-                  </div>
-                </div>
-              )}
-
-              {step === 3 && (
-                <div className="space-y-6">
-                  <h3 className="text-lg font-medium">
-                    {accountType === "individual"
-                      ? "Informations personnelles"
-                      : "Informations de l'entreprise"}
-                  </h3>
-
-                  {accountType === "individual" ? (
-                    <div className="space-y-4">
-                      <div className="grid grid-cols-2 gap-4">
-                        <FormField
-                          control={form.control}
-                          name="firstName"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel htmlFor="firstName">Prénom</FormLabel>
-                              <FormControl>
-                                <Input
-                                  id="firstName"
-                                  placeholder="Prénom"
-                                  {...field}
-                                  disabled={isLoading}
-                                  aria-invalid={!!form.formState.errors.firstName}
-                                  aria-describedby="firstName-error"
-                                />
-                              </FormControl>
-                              <FormMessage id="firstName-error" />
-                            </FormItem>
-                          )}
-                        />
-                        <FormField
-                          control={form.control}
-                          name="lastName"
-                          render={({ field }) => (
-                            <FormItem>
-                              <FormLabel htmlFor="lastName">Nom</FormLabel>
-                              <FormControl>
-                                <Input
-                                  id="lastName"
-                                  placeholder="Nom"
-                                  {...field}
-                                  disabled={isLoading}
-                                  aria-invalid={!!form.formState.errors.lastName}
-                                  aria-describedby="lastName-error"
-                                />
-                              </FormControl>
-                              <FormMessage id="lastName-error" />
-                            </FormItem>
-                          )}
-                        />
-                      </div>
-                      <FormField
-                        control={form.control}
-                        name="phone"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel htmlFor="phone">Téléphone</FormLabel>
-                            <FormControl>
-                              <Input
-                                id="phone"
-                                placeholder="+229 00000000"
-                                {...field}
-                                disabled={isLoading}
-                                aria-invalid={!!form.formState.errors.phone}
-                                aria-describedby="phone-error"
-                              />
-                            </FormControl>
-                            <FormMessage id="phone-error" />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      <FormField
-                        control={form.control}
-                        name="companyName"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel htmlFor="companyName">
-                              Nom de l&apos;entreprise
-                            </FormLabel>
-                            <FormControl>
-                              <Input
-                                id="companyName"
-                                placeholder="Nom de l'entreprise"
-                                {...field}
-                                disabled={isLoading}
-                                aria-invalid={!!form.formState.errors.companyName}
-                                aria-describedby="companyName-error"
-                              />
-                            </FormControl>
-                            <FormMessage id="companyName-error" />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="taxId"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel htmlFor="taxId">
-                              Numéro d&apos;identification fiscale
-                            </FormLabel>
-                            <FormControl>
-                              <Input
-                                id="taxId"
-                                placeholder="NIF"
-                                {...field}
-                                disabled={isLoading}
-                                aria-invalid={!!form.formState.errors.taxId}
-                                aria-describedby="taxId-error"
-                              />
-                            </FormControl>
-                            <FormMessage id="taxId-error" />
-                          </FormItem>
-                        )}
-                      />
-                      <FormField
-                        control={form.control}
-                        name="phone"
-                        render={({ field }) => (
-                          <FormItem>
-                            <FormLabel htmlFor="phone-company">Téléphone</FormLabel>
-                            <FormControl>
-                              <Input
-                                id="phone-company"
-                                placeholder="+229 00000000"
-                                {...field}
-                                disabled={isLoading}
-                                aria-invalid={!!form.formState.errors.phone}
-                                aria-describedby="phone-company-error"
-                              />
-                            </FormControl>
-                            <FormMessage id="phone-company-error" />
-                          </FormItem>
-                        )}
-                      />
-                    </div>
+                  {errors.email && (
+                    <p id="email-error" className="text-sm font-medium text-destructive">
+                      {errors.email}
+                    </p>
                   )}
                 </div>
-              )}
 
-              <div className="flex justify-between">
-                {step > 1 ? (
+                <div className="space-y-2">
+                  <label htmlFor="password" className="text-sm font-medium leading-none">
+                    Mot de passe
+                  </label>
+                  <Input
+                    id="password"
+                    name="password"
+                    type="password"
+                    placeholder="********"
+                    value={formValues.password}
+                    onChange={handleInputChange}
+                    disabled={isLoading}
+                    aria-invalid={!!errors.password}
+                    aria-describedby="password-error"
+                    autoComplete="new-password"
+                  />
+                  {errors.password && (
+                    <p id="password-error" className="text-sm font-medium text-destructive">
+                      {errors.password}
+                    </p>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <label htmlFor="confirmPassword" className="text-sm font-medium leading-none">
+                    Confirmer le mot de passe
+                  </label>
+                  <Input
+                    id="confirmPassword"
+                    name="confirmPassword"
+                    type="password"
+                    placeholder="********"
+                    value={formValues.confirmPassword}
+                    onChange={handleInputChange}
+                    disabled={isLoading}
+                    aria-invalid={!!errors.confirmPassword}
+                    aria-describedby="confirmPassword-error"
+                    autoComplete="new-password"
+                  />
+                  {errors.confirmPassword && (
+                    <p id="confirmPassword-error" className="text-sm font-medium text-destructive">
+                      {errors.confirmPassword}
+                    </p>
+                  )}
+                </div>
+              </>
+            )}
+
+            {step === 2 && (
+              <div className="space-y-4" role="radiogroup" aria-label="Type de compte">
+                <h3 className="text-lg font-medium">Type de compte</h3>
+                <div className="grid grid-cols-2 gap-4">
                   <Button
                     type="button"
-                    variant="outline"
-                    onClick={() => setStep(step - 1)}
-                    disabled={isLoading}
-                    aria-label="Retour à l'étape précédente"
+                    variant={accountType === "individual" ? "default" : "outline"}
+                    aria-pressed={accountType === "individual"}
+                    role="switch"
+                    className={`h-32 flex flex-col items-center justify-center ${accountType === "individual" ? "bg-benin-green" : ""
+                      }`}
+                    onClick={() => setAccountType("individual")}
+                    aria-label="Individuel"
                   >
-                    Retour
+                    <span className="text-4xl mb-2" aria-hidden="true">👤</span>
+                    <span>Individuel</span>
                   </Button>
-                ) : (
-                  <div />
-                )}
-                <Button type="submit" disabled={isLoading} aria-live="polite">
-                  {isLoading ? (
-                    <div className="flex items-center" aria-busy="true" aria-label="Chargement en cours">
-                      <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
-                      Chargement...
-                    </div>
-                  ) : step === 3 ? (
-                    "Terminer"
-                  ) : (
-                    "Continuer"
-                  )}
-                </Button>
+                  <Button
+                    type="button"
+                    variant={accountType === "company" ? "default" : "outline"}
+                    aria-pressed={accountType === "company"}
+                    role="switch"
+                    className={`h-32 flex flex-col items-center justify-center ${accountType === "company" ? "bg-benin-green" : ""
+                      }`}
+                    onClick={() => setAccountType("company")}
+                    aria-label="Entreprise"
+                  >
+                    <span className="text-4xl mb-2" aria-hidden="true">🏢</span>
+                    <span>Entreprise</span>
+                  </Button>
+                </div>
               </div>
-            </form>
-          </Form>
+            )}
+
+            {step === 3 && (
+              <div className="space-y-6">
+                <h3 className="text-lg font-medium">
+                  {accountType === "individual"
+                    ? "Informations personnelles"
+                    : "Informations de l'entreprise"}
+                </h3>
+
+                {accountType === "individual" ? (
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <label htmlFor="firstName" className="text-sm font-medium leading-none">
+                          Prénom
+                        </label>
+                        <Input
+                          id="firstName"
+                          name="firstName"
+                          placeholder="Prénom"
+                          value={formValues.firstName || ""}
+                          onChange={handleInputChange}
+                          disabled={isLoading}
+                          aria-invalid={!!errors.firstName}
+                          aria-describedby="firstName-error"
+                        />
+                        {errors.firstName && (
+                          <p id="firstName-error" className="text-sm font-medium text-destructive">
+                            {errors.firstName}
+                          </p>
+                        )}
+                      </div>
+                      <div className="space-y-2">
+                        <label htmlFor="lastName" className="text-sm font-medium leading-none">
+                          Nom
+                        </label>
+                        <Input
+                          id="lastName"
+                          name="lastName"
+                          placeholder="Nom"
+                          value={formValues.lastName || ""}
+                          onChange={handleInputChange}
+                          disabled={isLoading}
+                          aria-invalid={!!errors.lastName}
+                          aria-describedby="lastName-error"
+                        />
+                        {errors.lastName && (
+                          <p id="lastName-error" className="text-sm font-medium text-destructive">
+                            {errors.lastName}
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <label htmlFor="phone" className="text-sm font-medium leading-none">
+                        Téléphone
+                      </label>
+                      <Input
+                        id="phone"
+                        name="phone"
+                        placeholder="+229 00000000"
+                        value={formValues.phone || ""}
+                        onChange={handleInputChange}
+                        disabled={isLoading}
+                        aria-invalid={!!errors.phone}
+                        aria-describedby="phone-error"
+                      />
+                      {errors.phone && (
+                        <p id="phone-error" className="text-sm font-medium text-destructive">
+                          {errors.phone}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <label htmlFor="companyName" className="text-sm font-medium leading-none">
+                        Nom de l'entreprise
+                      </label>
+                      <Input
+                        id="companyName"
+                        name="companyName"
+                        placeholder="Nom de l'entreprise"
+                        value={formValues.companyName || ""}
+                        onChange={handleInputChange}
+                        disabled={isLoading}
+                        aria-invalid={!!errors.companyName}
+                        aria-describedby="companyName-error"
+                      />
+                      {errors.companyName && (
+                        <p id="companyName-error" className="text-sm font-medium text-destructive">
+                          {errors.companyName}
+                        </p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <label htmlFor="taxId" className="text-sm font-medium leading-none">
+                        Numéro d'identification fiscale
+                      </label>
+                      <Input
+                        id="taxId"
+                        name="taxId"
+                        placeholder="NIF"
+                        value={formValues.taxId || ""}
+                        onChange={handleInputChange}
+                        disabled={isLoading}
+                        aria-invalid={!!errors.taxId}
+                        aria-describedby="taxId-error"
+                      />
+                      {errors.taxId && (
+                        <p id="taxId-error" className="text-sm font-medium text-destructive">
+                          {errors.taxId}
+                        </p>
+                      )}
+                    </div>
+                    <div className="space-y-2">
+                      <label htmlFor="phone-company" className="text-sm font-medium leading-none">
+                        Téléphone
+                      </label>
+                      <Input
+                        id="phone-company"
+                        name="phone"
+                        placeholder="+229 00000000"
+                        value={formValues.phone || ""}
+                        onChange={handleInputChange}
+                        disabled={isLoading}
+                        aria-invalid={!!errors.phone}
+                        aria-describedby="phone-company-error"
+                      />
+                      {errors.phone && (
+                        <p id="phone-company-error" className="text-sm font-medium text-destructive">
+                          {errors.phone}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <div className="flex justify-between">
+              {step > 1 ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setStep(step - 1)}
+                  disabled={isLoading}
+                  aria-label="Retour à l'étape précédente"
+                >
+                  Retour
+                </Button>
+              ) : (
+                <div />
+              )}
+              <Button type="submit" disabled={isLoading} aria-live="polite">
+                {isLoading ? "Chargement..." : step === 3 ? "Terminer" : "Continuer"}
+              </Button>
+            </div>
+          </form>
 
           <div className="text-center text-sm mt-4">
             <p>
               Vous avez déjà un compte?{" "}
-              <Link
-                to="/login"
-                className="text-benin-green hover:underline font-medium"
-              >
+              <Link to="/login" className="text-benin-green hover:underline font-medium">
                 Connectez-vous
               </Link>
             </p>
@@ -504,4 +457,3 @@ const Register = () => {
 };
 
 export default Register;
-
