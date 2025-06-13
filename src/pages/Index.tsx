@@ -57,8 +57,8 @@ const Index = () => {
         <div className="container mx-auto px-4 py-20 relative z-10">
           {/* Drapeaux animés en haut */}
           <div className="absolute top-4 right-4 flex items-center gap-2 animate-float-slow">
-            <span className="text-2xl transform hover:scale-110 transition-transform text-benin-green filter drop-shadow-lg">🇧🇯</span>
-            <span className="text-2xl transform hover:scale-110 transition-transform text-benin-green filter drop-shadow-lg">🇹🇬</span>
+            <span className="text-2xl transform hover:scale-110 transition-transform text-benin-green filter drop-shadow-lg cursor-pointer">🇧🇯</span>
+            <span className="text-2xl transform hover:scale-110 transition-transform text-benin-green filter drop-shadow-lg cursor-pointer">🇹🇬</span>
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
@@ -83,7 +83,7 @@ const Index = () => {
                   </Button>
                 </Link>
                 <Link to="/about">
-                  <Button size="lg" variant="outline" className="hover:glow border-2 border-benin-green/20 hover:border-benin-green/40 bg-white/50 hover:bg-white/80 dark:bg-slate-800/50 dark:hover:bg-slate-800/80">
+                  <Button size="lg" variant="outline" className="hover:glow border-2 border-benin-green/20 hover:border-benin-green/40 bg-white/50 hover:bg-benin-green hover:text-white dark:bg-slate-800/50 dark:hover:bg-slate-800/80 transition">
                     En savoir plus
                   </Button>
                 </Link>

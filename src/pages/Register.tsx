@@ -25,8 +25,8 @@ const step1Schema = z.object({
     .string()
     .min(8, "Le mot de passe doit contenir au moins 8 caractères")
     .regex(
-      /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/,
-      "Le mot de passe doit contenir au moins une majuscule, une minuscule, un chiffre et un caractère spécial"
+      /^(?=.*[a-z])(?=.*[A-Z])[A-Za-z]{6,}$/,
+      "Le mot de passe doit contenir au moins une majuscule, une minuscule et 6 caractères"
     ),
   confirmPassword: z.string(),
 }).refine(data => data.password === data.confirmPassword, {
@@ -49,7 +49,7 @@ const step3CompanySchema = z.object({
 });
 
 // Type pour le formulaire complet
-type RegisterFormValues = z.infer<typeof step1Schema> & 
+type RegisterFormValues = z.infer<typeof step1Schema> &
   Partial<z.infer<typeof step3IndividualSchema>> &
   Partial<z.infer<typeof step3CompanySchema>>;
 
@@ -59,11 +59,11 @@ const Register = () => {
   const [step, setStep] = useState<number>(1);
   const [accountType, setAccountType] = useState<"individual" | "company">("individual");
   const [isLoading, setIsLoading] = useState(false);
-  
+
   const form = useForm<RegisterFormValues>({
-    resolver: zodResolver(step === 1 ? step1Schema : 
-      step === 3 ? (accountType === "individual" ? step3IndividualSchema : step3CompanySchema) : 
-      z.object({})),
+    resolver: zodResolver(step === 1 ? step1Schema :
+      step === 3 ? (accountType === "individual" ? step3IndividualSchema : step3CompanySchema) :
+        z.object({})),
     defaultValues: {
       email: "",
       password: "",
@@ -153,9 +153,8 @@ const Register = () => {
             {[1, 2, 3].map((i) => (
               <div
                 key={i}
-                className={`w-2.5 h-2.5 rounded-full ${
-                  step >= i ? "bg-benin-green" : "bg-gray-300"
-                }`}
+                className={`w-2.5 h-2.5 rounded-full ${step >= i ? "bg-benin-green" : "bg-gray-300"
+                  }`}
               />
             ))}
           </div>
@@ -171,9 +170,9 @@ const Register = () => {
                       <FormItem>
                         <FormLabel>Email</FormLabel>
                         <FormControl>
-                          <Input 
-                            placeholder="votre-email@example.com" 
-                            {...field} 
+                          <Input
+                            placeholder="votre-email@example.com"
+                            {...field}
                             disabled={isLoading}
                           />
                         </FormControl>
@@ -189,9 +188,9 @@ const Register = () => {
                       <FormItem>
                         <FormLabel>Mot de passe</FormLabel>
                         <FormControl>
-                          <Input 
-                            type="password" 
-                            {...field} 
+                          <Input
+                            type="password"
+                            {...field}
                             disabled={isLoading}
                           />
                         </FormControl>
@@ -207,9 +206,9 @@ const Register = () => {
                       <FormItem>
                         <FormLabel>Confirmer le mot de passe</FormLabel>
                         <FormControl>
-                          <Input 
-                            type="password" 
-                            {...field} 
+                          <Input
+                            type="password"
+                            {...field}
                             disabled={isLoading}
                           />
                         </FormControl>
@@ -227,9 +226,8 @@ const Register = () => {
                     <Button
                       type="button"
                       variant={accountType === "individual" ? "default" : "outline"}
-                      className={`h-32 flex flex-col items-center justify-center ${
-                        accountType === "individual" ? "bg-benin-green" : ""
-                      }`}
+                      className={`h-32 flex flex-col items-center justify-center ${accountType === "individual" ? "bg-benin-green" : ""
+                        }`}
                       onClick={() => setAccountType("individual")}
                     >
                       <span className="text-xl mb-2">👤</span>
@@ -238,9 +236,8 @@ const Register = () => {
                     <Button
                       type="button"
                       variant={accountType === "company" ? "default" : "outline"}
-                      className={`h-32 flex flex-col items-center justify-center ${
-                        accountType === "company" ? "bg-benin-green" : ""
-                      }`}
+                      className={`h-32 flex flex-col items-center justify-center ${accountType === "company" ? "bg-benin-green" : ""
+                        }`}
                       onClick={() => setAccountType("company")}
                     >
                       <span className="text-xl mb-2">🏢</span>
@@ -257,7 +254,7 @@ const Register = () => {
                       ? "Informations personnelles"
                       : "Informations de l'entreprise"}
                   </h3>
-                  
+
                   {accountType === "individual" ? (
                     <div className="space-y-4">
                       <div className="grid grid-cols-2 gap-4">
@@ -268,9 +265,9 @@ const Register = () => {
                             <FormItem>
                               <FormLabel>Prénom</FormLabel>
                               <FormControl>
-                                <Input 
-                                  placeholder="Prénom" 
-                                  {...field} 
+                                <Input
+                                  placeholder="Prénom"
+                                  {...field}
                                   disabled={isLoading}
                                 />
                               </FormControl>
@@ -285,9 +282,9 @@ const Register = () => {
                             <FormItem>
                               <FormLabel>Nom</FormLabel>
                               <FormControl>
-                                <Input 
-                                  placeholder="Nom" 
-                                  {...field} 
+                                <Input
+                                  placeholder="Nom"
+                                  {...field}
                                   disabled={isLoading}
                                 />
                               </FormControl>
@@ -303,9 +300,9 @@ const Register = () => {
                           <FormItem>
                             <FormLabel>Téléphone</FormLabel>
                             <FormControl>
-                              <Input 
-                                placeholder="+229 00000000" 
-                                {...field} 
+                              <Input
+                                placeholder="+229 00000000"
+                                {...field}
                                 disabled={isLoading}
                               />
                             </FormControl>
@@ -323,9 +320,9 @@ const Register = () => {
                           <FormItem>
                             <FormLabel>Nom de l'entreprise</FormLabel>
                             <FormControl>
-                              <Input 
-                                placeholder="Nom de l'entreprise" 
-                                {...field} 
+                              <Input
+                                placeholder="Nom de l'entreprise"
+                                {...field}
                                 disabled={isLoading}
                               />
                             </FormControl>
@@ -340,9 +337,9 @@ const Register = () => {
                           <FormItem>
                             <FormLabel>Numéro d'identification fiscale</FormLabel>
                             <FormControl>
-                              <Input 
-                                placeholder="NIF" 
-                                {...field} 
+                              <Input
+                                placeholder="NIF"
+                                {...field}
                                 disabled={isLoading}
                               />
                             </FormControl>
@@ -357,9 +354,9 @@ const Register = () => {
                           <FormItem>
                             <FormLabel>Téléphone</FormLabel>
                             <FormControl>
-                              <Input 
-                                placeholder="+229 00000000" 
-                                {...field} 
+                              <Input
+                                placeholder="+229 00000000"
+                                {...field}
                                 disabled={isLoading}
                               />
                             </FormControl>

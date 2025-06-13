@@ -666,13 +666,13 @@ const SimulationEnterprise = () => {
           <TabsContent value="employees" className="space-y-6">
             <div className="flex justify-between items-center">
               <h2 className="text-2xl font-bold">Gestion des employés</h2>
-              <Button 
+              {/* <Button 
                 size="sm"
                 onClick={() => setShowAddEmployeeModal(true)}
               >
                 <Plus className="mr-2 h-4 w-4" />
                 Ajouter un employé
-              </Button>
+              </Button> */}
             </div>
             
             <Card>
