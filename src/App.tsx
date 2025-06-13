@@ -13,12 +13,14 @@ import Chatbot from "./components/Chatbot";
 
 import Index from "./pages/Index";
 import Simulation from "./pages/Simulation";
+import Simulationparticulier from "./pages/Simulationparticulier";
 import SimulationEmployee from "./pages/SimulationEmployee";
 import SimulationEnterprise from "./pages/SimulationEnterprise";
 import Login from "./pages/Login";
 import Register from "./pages/Register";
 import Resources from "./pages/Resources";
 import CountrySelection from "./pages/CountrySelection";
+import Dashboard from "./pages/Dashboard";
 import EmployeeDashboard from "./pages/EmployeeDashboard";
 import EnterpriseDashboard from "./pages/EnterpriseDashboard";
 import NotFound from "./pages/NotFound";
@@ -56,12 +58,14 @@ const App = () => {
               <Routes>
                 <Route path="/" element={<Index />} />
                 <Route path="/simulation" element={<Simulation />} />
+                <Route path="/simulationparticulier" element={<Simulationparticulier />} />
                 <Route path="/simulation/employee" element={<SimulationEmployee />} />
                 <Route path="/simulation/enterprise" element={<SimulationEnterprise />} />
                 <Route path="/login" element={<Login />} />
                 <Route path="/register" element={<Register />} />
                 <Route path="/resources" element={<Resources />} />
                 <Route path="/country-selection" element={<CountrySelection />} />
+                <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/employee-dashboard" element={<EmployeeDashboard />} />
                 <Route path="/enterprise-dashboard" element={<EnterpriseDashboard />} />
                 

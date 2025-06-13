@@ -591,27 +591,18 @@ const SimulationEnterprise = () => {
                   </div>
                   
                   <div className="mt-4 space-y-2">
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center">
-                        <div className="h-3 w-3 rounded-full bg-blue-500 mr-2"></div>
-                        <span>Technique</span>
+                    {chartData.departmentData.map((dept, index) => (
+                      <div key={dept.name} className="flex justify-between items-center">
+                        <div className="flex items-center">
+                          <div 
+                            className="h-3 w-3 rounded-full mr-2"
+                            style={{ backgroundColor: `hsl(${index * 120}, 70%, 50%)` }}
+                          ></div>
+                          <span>{dept.name}</span>
+                        </div>
+                        <span className="font-medium">{formatCurrency(dept.salary)}</span>
                       </div>
-                      <span className="font-medium">{formatCurrency(1400000)}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center">
-                        <div className="h-3 w-3 rounded-full bg-green-500 mr-2"></div>
-                        <span>Commercial</span>
-                      </div>
-                      <span className="font-medium">{formatCurrency(650000)}</span>
-                    </div>
-                    <div className="flex justify-between items-center">
-                      <div className="flex items-center">
-                        <div className="h-3 w-3 rounded-full bg-amber-500 mr-2"></div>
-                        <span>Ressources Humaines</span>
-                      </div>
-                      <span className="font-medium">{formatCurrency(380000)}</span>
-                    </div>
+                    ))}
                   </div>
                 </CardContent>
               </Card>
