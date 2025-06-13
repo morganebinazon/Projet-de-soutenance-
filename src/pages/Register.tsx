@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { useForm } from "react-hook-form";
+import { useForm, SubmitHandler } from "react-hook-form";
 import { z } from "zod";
 import { zodResolver } from "@hookform/resolvers/zod";
 import Layout from "@/components/layout/Layout";
@@ -16,39 +16,39 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useCountry } from "@/hooks/use-country.tsx";
-import { authService } from "@/services/auth";
+import { useAuthStore } from "@/stores/authSore";
 
-// Schéma de validation pour l'étape 1
-const step1Schema = z.object({
-  email: z.string().email("Email invalide"),
-  password: z
-    .string()
-    .min(8, "Le mot de passe doit contenir au moins 8 caractères")
-    .regex(
-      /^(?=.*[a-z])(?=.*[A-Z])[A-Za-z]{6,}$/,
-      "Le mot de passe doit contenir au moins une majuscule, une minuscule et 6 caractères"
-    ),
-  confirmPassword: z.string(),
-}).refine(data => data.password === data.confirmPassword, {
-  message: "Les mots de passe ne correspondent pas",
-  path: ["confirmPassword"]
-});
+// Validation schemas
+const step1Schema = z
+  .object({
+    email: z
+      .string()
+      .min(1, "L'email est requis")
+      .email("Email invalide")
+      .transform((email) => email.trim().toLowerCase()),
+    password: z.string().min(8, "Le mot de passe doit contenir au moins 8 caractères"),
+    confirmPassword: z.string(),
+  })
+  .refine((data) => data.password === data.confirmPassword, {
+    message: "Les mots de passe ne correspondent pas",
+    path: ["confirmPassword"],
+  });
 
-// Schéma de validation pour l'étape 3 - Individuel
 const step3IndividualSchema = z.object({
-  firstName: z.string().min(2, "Le prénom est requis"),
-  lastName: z.string().min(2, "Le nom est requis"),
-  phone: z.string().min(8, "Le numéro de téléphone est requis"),
+  firstName: z.string().min(1, "Le prénom est requis").transform((val) => val.trim()),
+  lastName: z.string().min(1, "Le nom est requis").transform((val) => val.trim()),
+  phone: z.string().min(8, "Le numéro de téléphone est requis").transform((val) => val.trim()),
 });
 
-// Schéma de validation pour l'étape 3 - Entreprise
 const step3CompanySchema = z.object({
-  companyName: z.string().min(2, "Le nom de l'entreprise est requis"),
-  taxId: z.string().min(2, "Le numéro d'identification fiscale est requis"),
-  phone: z.string().min(8, "Le numéro de téléphone est requis"),
+  companyName: z.string().min(1, "Le nom de l'entreprise est requis").transform((val) => val.trim()),
+  taxId: z
+    .string()
+    .min(1, "Le numéro d'identification fiscale est requis")
+    .transform((val) => val.trim()),
+  phone: z.string().min(8, "Le numéro de téléphone est requis").transform((val) => val.trim()),
 });
 
-// Type pour le formulaire complet
 type RegisterFormValues = z.infer<typeof step1Schema> &
   Partial<z.infer<typeof step3IndividualSchema>> &
   Partial<z.infer<typeof step3CompanySchema>>;
@@ -60,10 +60,19 @@ const Register = () => {
   const [accountType, setAccountType] = useState<"individual" | "company">("individual");
   const [isLoading, setIsLoading] = useState(false);
 
+  // Reference for first error input for focus management
+  const firstErrorRef = useRef<HTMLInputElement | null>(null);
+
   const form = useForm<RegisterFormValues>({
-    resolver: zodResolver(step === 1 ? step1Schema :
-      step === 3 ? (accountType === "individual" ? step3IndividualSchema : step3CompanySchema) :
-        z.object({})),
+    resolver: zodResolver(
+      step === 1
+        ? step1Schema
+        : step === 3
+          ? accountType === "individual"
+            ? step3IndividualSchema
+            : step3CompanySchema
+          : z.object({})
+    ),
     defaultValues: {
       email: "",
       password: "",
@@ -74,69 +83,119 @@ const Register = () => {
       companyName: "",
       taxId: "",
     },
-    mode: "onChange"
+    mode: "onBlur",
   });
 
-  const onSubmit = async (values: RegisterFormValues) => {
+  // On validation errors, focus first error field for better UX
+  useEffect(() => {
+    const firstErrorFieldName = Object.keys(form.formState.errors)[0] as keyof RegisterFormValues | undefined;
+    if (firstErrorFieldName) {
+      // Use setTimeout to wait for DOM render
+      setTimeout(() => {
+        const errorElement = document.querySelector(
+          `[name="${firstErrorFieldName}"]`
+        ) as HTMLElement | null;
+        errorElement?.focus();
+      }, 100);
+    }
+  }, [form.formState.errors]);
+
+  const onSubmit: SubmitHandler<RegisterFormValues> = async (formValues) => {
+    setIsLoading(true);
+    console.log("Form values before cleaning:", formValues);
+    // Cleaning inputs with fallback empty string
+    const cleanedValues = {
+      email: formValues.email?.trim().toLowerCase() || "",
+      password: formValues.password || "",
+      confirmPassword: formValues.confirmPassword || "",
+      firstName: formValues.firstName?.trim() || "",
+      lastName: formValues.lastName?.trim() || "",
+      phone: formValues.phone?.trim() || "",
+      companyName: formValues.companyName?.trim() || "",
+      taxId: formValues.taxId?.trim() || "",
+    };
+
     try {
       if (step === 1) {
-        // Valider uniquement les champs de l'étape 1
-        await step1Schema.parseAsync({
-          email: values.email,
-          password: values.password,
-          confirmPassword: values.confirmPassword,
-        });
+        // Validate step 1 inputs
+        await step1Schema.parseAsync(cleanedValues);
         setStep(2);
       } else if (step === 2) {
+        // Just progress step 2 to 3 with account type selected
         setStep(3);
-      } else {
-        // Valider les champs de l'étape 3 selon le type de compte
+      } else if (step === 3) {
+        // Validate step 3 inputs depending on account type
         if (accountType === "individual") {
-          await step3IndividualSchema.parseAsync({
-            firstName: values.firstName,
-            lastName: values.lastName,
-            phone: values.phone,
-          });
+          await step3IndividualSchema.parseAsync(cleanedValues);
         } else {
-          await step3CompanySchema.parseAsync({
-            companyName: values.companyName,
-            taxId: values.taxId,
-            phone: values.phone,
-          });
+          await step3CompanySchema.parseAsync(cleanedValues);
         }
 
-        setIsLoading(true);
-        // Envoyer les données d'inscription
-        const response = await authService.register({
-          name: `${values.firstName} ${values.lastName}`,
-          email: values.email,
-          password: values.password,
-          company: accountType === "company" ? values.companyName : undefined,
-          phone: values.phone,
-          country: country === 'benin' ? 'Bénin' : 'Togo',
-        });
+        // Prepare data for registration
+        const userData = {
+          name:
+            accountType === "individual"
+              ? `${cleanedValues.firstName} ${cleanedValues.lastName}`
+              : cleanedValues.companyName,
+          email: cleanedValues.email,
+          password: cleanedValues.password,
+          company: accountType === "company" ? cleanedValues.companyName : undefined,
+          phone: cleanedValues.phone,
+          country: country === "benin" ? "Bénin" : "Togo",
+          role: accountType === "company" ? "entreprise" : "client",
+        };
 
-        // Stocker le token et les informations utilisateur
-        localStorage.setItem('token', response.token);
-        localStorage.setItem('user', JSON.stringify(response.user));
+        // Register user via auth store
+        await useAuthStore.getState().register(userData);
 
-        toast.success("Inscription réussie ! Bienvenue sur PayeAfrique.");
-        navigate("/dashboard");
+        toast.success("Inscription réussie !");
+        navigate("/login");
       }
     } catch (error: any) {
       if (error instanceof z.ZodError) {
-        // Gérer les erreurs de validation Zod
-        error.errors.forEach((err) => {
-          toast.error(err.message);
+        // Set field errors explicitly to show messages next to inputs
+        error.errors.forEach(({ path, message }) => {
+          if (path.length > 0) {
+            form.setError(path[0] as keyof RegisterFormValues, { message });
+          } else {
+            toast.error(message);
+          }
         });
       } else {
-        console.error('Erreur lors de l\'inscription:', error);
-        toast.error(error.response?.data?.message || "Erreur lors de l'inscription");
+        console.error("Erreur lors de l'inscription:", error);
+        toast.error(error.message ?? "Erreur lors de l'inscription");
       }
     } finally {
       setIsLoading(false);
     }
   };
+
+  // Accessibility: role and aria-pressed for toggle buttons on account type
+  const AccountTypeButton = ({
+    type,
+    label,
+    icon,
+  }: {
+    type: "individual" | "company";
+    label: string;
+    icon: string;
+  }) => (
+    <Button
+      type="button"
+      variant={accountType === type ? "default" : "outline"}
+      aria-pressed={accountType === type}
+      role="switch"
+      className={`h-32 flex flex-col items-center justify-center ${accountType === type ? "bg-benin-green" : ""
+        }`}
+      onClick={() => setAccountType(type)}
+      aria-label={`${label} account type`}
+    >
+      <span aria-hidden="true" className="text-4xl mb-2">
+        {icon}
+      </span>
+      <span>{label}</span>
+    </Button>
+  );
 
   return (
     <Layout>
@@ -145,7 +204,8 @@ const Register = () => {
           <div className="text-center">
             <h1 className="text-3xl font-bold font-heading">Créer un compte</h1>
             <p className="text-muted-foreground mt-2">
-              Rejoignez PayeAfrique pour gérer efficacement vos salaires au {country === 'benin' ? 'Bénin' : 'Togo'}
+              Rejoignez PayeAfrique pour gérer efficacement vos salaires au{" "}
+              {country === "benin" ? "Bénin" : "Togo"}
             </p>
           </div>
 
@@ -155,12 +215,19 @@ const Register = () => {
                 key={i}
                 className={`w-2.5 h-2.5 rounded-full ${step >= i ? "bg-benin-green" : "bg-gray-300"
                   }`}
+                aria-current={step === i ? "step" : undefined}
+                aria-label={`Step ${i}`}
               />
             ))}
           </div>
 
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+            <form
+              onSubmit={form.handleSubmit(onSubmit)}
+              className="space-y-6"
+              noValidate
+              aria-live="polite"
+            >
               {step === 1 && (
                 <>
                   <FormField
@@ -168,15 +235,19 @@ const Register = () => {
                     name="email"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Email</FormLabel>
+                        <FormLabel htmlFor="email">Email</FormLabel>
                         <FormControl>
                           <Input
+                            id="email"
+                            type="email"
                             placeholder="votre-email@example.com"
                             {...field}
                             disabled={isLoading}
+                            aria-invalid={!!form.formState.errors.email}
+                            aria-describedby="email-error"
                           />
                         </FormControl>
-                        <FormMessage />
+                        <FormMessage id="email-error" />
                       </FormItem>
                     )}
                   />
@@ -186,15 +257,20 @@ const Register = () => {
                     name="password"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Mot de passe</FormLabel>
+                        <FormLabel htmlFor="password">Mot de passe</FormLabel>
                         <FormControl>
                           <Input
+                            id="password"
                             type="password"
+                            placeholder="********"
                             {...field}
                             disabled={isLoading}
+                            aria-invalid={!!form.formState.errors.password}
+                            aria-describedby="password-error"
+                            autoComplete="new-password"
                           />
                         </FormControl>
-                        <FormMessage />
+                        <FormMessage id="password-error" />
                       </FormItem>
                     )}
                   />
@@ -204,15 +280,22 @@ const Register = () => {
                     name="confirmPassword"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Confirmer le mot de passe</FormLabel>
+                        <FormLabel htmlFor="confirmPassword">
+                          Confirmer le mot de passe
+                        </FormLabel>
                         <FormControl>
                           <Input
+                            id="confirmPassword"
                             type="password"
+                            placeholder="********"
                             {...field}
                             disabled={isLoading}
+                            aria-invalid={!!form.formState.errors.confirmPassword}
+                            aria-describedby="confirmPassword-error"
+                            autoComplete="new-password"
                           />
                         </FormControl>
-                        <FormMessage />
+                        <FormMessage id="confirmPassword-error" />
                       </FormItem>
                     )}
                   />
@@ -220,29 +303,11 @@ const Register = () => {
               )}
 
               {step === 2 && (
-                <div className="space-y-4">
+                <div className="space-y-4" role="radiogroup" aria-label="Type de compte">
                   <h3 className="text-lg font-medium">Type de compte</h3>
                   <div className="grid grid-cols-2 gap-4">
-                    <Button
-                      type="button"
-                      variant={accountType === "individual" ? "default" : "outline"}
-                      className={`h-32 flex flex-col items-center justify-center ${accountType === "individual" ? "bg-benin-green" : ""
-                        }`}
-                      onClick={() => setAccountType("individual")}
-                    >
-                      <span className="text-xl mb-2">👤</span>
-                      <span>Individuel</span>
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={accountType === "company" ? "default" : "outline"}
-                      className={`h-32 flex flex-col items-center justify-center ${accountType === "company" ? "bg-benin-green" : ""
-                        }`}
-                      onClick={() => setAccountType("company")}
-                    >
-                      <span className="text-xl mb-2">🏢</span>
-                      <span>Entreprise</span>
-                    </Button>
+                    <AccountTypeButton type="individual" label="Individuel" icon="👤" />
+                    <AccountTypeButton type="company" label="Entreprise" icon="🏢" />
                   </div>
                 </div>
               )}
@@ -263,15 +328,18 @@ const Register = () => {
                           name="firstName"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Prénom</FormLabel>
+                              <FormLabel htmlFor="firstName">Prénom</FormLabel>
                               <FormControl>
                                 <Input
+                                  id="firstName"
                                   placeholder="Prénom"
                                   {...field}
                                   disabled={isLoading}
+                                  aria-invalid={!!form.formState.errors.firstName}
+                                  aria-describedby="firstName-error"
                                 />
                               </FormControl>
-                              <FormMessage />
+                              <FormMessage id="firstName-error" />
                             </FormItem>
                           )}
                         />
@@ -280,15 +348,18 @@ const Register = () => {
                           name="lastName"
                           render={({ field }) => (
                             <FormItem>
-                              <FormLabel>Nom</FormLabel>
+                              <FormLabel htmlFor="lastName">Nom</FormLabel>
                               <FormControl>
                                 <Input
+                                  id="lastName"
                                   placeholder="Nom"
                                   {...field}
                                   disabled={isLoading}
+                                  aria-invalid={!!form.formState.errors.lastName}
+                                  aria-describedby="lastName-error"
                                 />
                               </FormControl>
-                              <FormMessage />
+                              <FormMessage id="lastName-error" />
                             </FormItem>
                           )}
                         />
@@ -298,15 +369,18 @@ const Register = () => {
                         name="phone"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Téléphone</FormLabel>
+                            <FormLabel htmlFor="phone">Téléphone</FormLabel>
                             <FormControl>
                               <Input
+                                id="phone"
                                 placeholder="+229 00000000"
                                 {...field}
                                 disabled={isLoading}
+                                aria-invalid={!!form.formState.errors.phone}
+                                aria-describedby="phone-error"
                               />
                             </FormControl>
-                            <FormMessage />
+                            <FormMessage id="phone-error" />
                           </FormItem>
                         )}
                       />
@@ -318,15 +392,20 @@ const Register = () => {
                         name="companyName"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Nom de l'entreprise</FormLabel>
+                            <FormLabel htmlFor="companyName">
+                              Nom de l&apos;entreprise
+                            </FormLabel>
                             <FormControl>
                               <Input
+                                id="companyName"
                                 placeholder="Nom de l'entreprise"
                                 {...field}
                                 disabled={isLoading}
+                                aria-invalid={!!form.formState.errors.companyName}
+                                aria-describedby="companyName-error"
                               />
                             </FormControl>
-                            <FormMessage />
+                            <FormMessage id="companyName-error" />
                           </FormItem>
                         )}
                       />
@@ -335,15 +414,20 @@ const Register = () => {
                         name="taxId"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Numéro d'identification fiscale</FormLabel>
+                            <FormLabel htmlFor="taxId">
+                              Numéro d&apos;identification fiscale
+                            </FormLabel>
                             <FormControl>
                               <Input
+                                id="taxId"
                                 placeholder="NIF"
                                 {...field}
                                 disabled={isLoading}
+                                aria-invalid={!!form.formState.errors.taxId}
+                                aria-describedby="taxId-error"
                               />
                             </FormControl>
-                            <FormMessage />
+                            <FormMessage id="taxId-error" />
                           </FormItem>
                         )}
                       />
@@ -352,15 +436,18 @@ const Register = () => {
                         name="phone"
                         render={({ field }) => (
                           <FormItem>
-                            <FormLabel>Téléphone</FormLabel>
+                            <FormLabel htmlFor="phone-company">Téléphone</FormLabel>
                             <FormControl>
                               <Input
+                                id="phone-company"
                                 placeholder="+229 00000000"
                                 {...field}
                                 disabled={isLoading}
+                                aria-invalid={!!form.formState.errors.phone}
+                                aria-describedby="phone-company-error"
                               />
                             </FormControl>
-                            <FormMessage />
+                            <FormMessage id="phone-company-error" />
                           </FormItem>
                         )}
                       />
@@ -376,15 +463,16 @@ const Register = () => {
                     variant="outline"
                     onClick={() => setStep(step - 1)}
                     disabled={isLoading}
+                    aria-label="Retour à l'étape précédente"
                   >
                     Retour
                   </Button>
                 ) : (
-                  <div></div>
+                  <div />
                 )}
-                <Button type="submit" disabled={isLoading}>
+                <Button type="submit" disabled={isLoading} aria-live="polite">
                   {isLoading ? (
-                    <div className="flex items-center">
+                    <div className="flex items-center" aria-busy="true" aria-label="Chargement en cours">
                       <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-white mr-2"></div>
                       Chargement...
                     </div>
@@ -398,7 +486,7 @@ const Register = () => {
             </form>
           </Form>
 
-          <div className="text-center text-sm">
+          <div className="text-center text-sm mt-4">
             <p>
               Vous avez déjà un compte?{" "}
               <Link
@@ -416,3 +504,4 @@ const Register = () => {
 };
 
 export default Register;
+

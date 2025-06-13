@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { Link, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
@@ -17,6 +18,7 @@ import { toast } from "sonner";
 import { useCountry } from "@/hooks/use-country.tsx";
 import { useState } from "react";
 import { authService } from "@/services/auth";
+import { useAuthStore } from "@/stores/authSore";
 
 const loginSchema = z.object({
   email: z.string().email("Email invalide"),
@@ -30,7 +32,7 @@ const Login = () => {
   const { country } = useCountry();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = useState(false);
-  
+
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
     defaultValues: {
@@ -43,22 +45,20 @@ const Login = () => {
   const onSubmit = async (values: LoginFormValues) => {
     try {
       setIsLoading(true);
-      const response = await authService.login({
-        email: values.email,
-        password: values.password
-      });
+      await useAuthStore.getState().login(values.email, values.password);
 
-      // Stocker le token et les informations utilisateur
-      localStorage.setItem('token', response.token);
-      localStorage.setItem('user', JSON.stringify(response.user));
+      const { user } = useAuthStore.getState();
 
       toast.success("Connexion réussie ! Bienvenue sur PayeAfrique.");
-      
-      // Rediriger vers le tableau de bord
-      navigate('/dashboard');
+
+      if (user?.role === "entreprise") {
+        navigate('/enterprise-dashboard');
+      } else {
+        navigate('/dashboard');
+      }
     } catch (error: any) {
       console.error('Erreur de connexion:', error);
-      toast.error(error.response?.data?.message || "Erreur lors de la connexion");
+      toast.error(error.message || "Erreur lors de la connexion");
     } finally {
       setIsLoading(false);
     }
@@ -84,9 +84,9 @@ const Login = () => {
                   <FormItem>
                     <FormLabel>Email</FormLabel>
                     <FormControl>
-                      <Input 
-                        placeholder="votre-email@example.com" 
-                        {...field} 
+                      <Input
+                        placeholder="votre-email@example.com"
+                        {...field}
                         disabled={isLoading}
                       />
                     </FormControl>
@@ -101,9 +101,9 @@ const Login = () => {
                   <FormItem>
                     <FormLabel>Mot de passe</FormLabel>
                     <FormControl>
-                      <Input 
-                        type="password" 
-                        {...field} 
+                      <Input
+                        type="password"
+                        {...field}
                         disabled={isLoading}
                       />
                     </FormControl>
@@ -179,7 +179,7 @@ const Login = () => {
             </Button>
             <Button variant="outline" type="button" className="space-x-2" disabled={isLoading}>
               <svg viewBox="0 0 24 24" className="h-5 w-5 fill-current text-blue-600">
-                <path d="M22,12.1c0-5.5-4.5-10-10-10S2,6.5,2,12.1c0,5,3.7,9.1,8.4,9.9v-7H7.9v-2.9h2.5V9.9c0-2.5,1.5-3.9,3.8-3.9c1.1,0,2.2,0.2,2.2,0.2v2.5h-1.3c-1.2,0-1.6,0.8-1.6,1.6v1.9h2.8L15.9,15h-2.3v7C18.3,21.2,22,17.1,22,12.1z"/>
+                <path d="M22,12.1c0-5.5-4.5-10-10-10S2,6.5,2,12.1c0,5,3.7,9.1,8.4,9.9v-7H7.9v-2.9h2.5V9.9c0-2.5,1.5-3.9,3.8-3.9c1.1,0,2.2,0.2,2.2,0.2v2.5h-1.3c-1.2,0-1.6,0.8-1.6,1.6v1.9h2.8L15.9,15h-2.3v7C18.3,21.2,22,17.1,22,12.1z" />
               </svg>
               <span>Facebook</span>
             </Button>

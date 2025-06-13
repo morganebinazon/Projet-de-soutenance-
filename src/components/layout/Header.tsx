@@ -1,21 +1,43 @@
-
 import { useState } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { Menu, X, Sun, Moon } from "lucide-react";
+import { Menu, X, Sun, Moon, User, LogOut } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useTheme } from "@/hooks/use-theme";
 import CountrySelector from "../country/CountrySelector";
 import Logo from "./Logo";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { useAuthStore } from "@/stores/authSore";
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { theme, setTheme } = useTheme();
   const location = useLocation();
+  const { user, isAuthenticated, logout } = useAuthStore();
 
   const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
   const toggleTheme = () => setTheme(theme === "dark" ? "light" : "dark");
   
   const isActive = (path: string) => location.pathname === path;
+
+  const handleLogout = () => {
+    logout();
+    setIsMenuOpen(false);
+  };
+
+  const getInitials = (name?: string) => {
+    if (!name) return "U";
+    return name
+      .split(" ")
+      .map((n) => n[0])
+      .join("")
+      .toUpperCase();
+  };
 
   return (
     <header className="sticky top-0 z-50 w-full bg-white/80 dark:bg-gray-900/80 backdrop-blur-md border-b border-gray-200 dark:border-gray-800">
@@ -78,13 +100,47 @@ const Header = () => {
                 {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
               </Button>
               
-              <Button variant="outline" asChild>
-                <Link to="/login">Connexion</Link>
-              </Button>
-              
-              <Button className="bg-benin-green hover:bg-benin-green/90" asChild>
-                <Link to="/register">Inscription</Link>
-              </Button>
+              {isAuthenticated ? (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="ghost" className="flex items-center gap-2 px-2">
+                      <Avatar className="h-8 w-8">
+                        <AvatarImage src={user?.avatar} />
+                        <AvatarFallback>
+                          {getInitials(user?.name)}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span className="hidden md:inline text-sm font-medium">
+                        {user?.name}
+                      </span>
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-56">
+                    <DropdownMenuItem asChild>
+                      <Link to="/profile" className="flex items-center gap-2">
+                        <User className="h-4 w-4" />
+                        <span>Mon profil</span>
+                      </Link>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem 
+                      onClick={handleLogout}
+                      className="text-red-600 focus:text-red-600 dark:text-red-400 dark:focus:text-red-400"
+                    >
+                      <LogOut className="h-4 w-4 mr-2" />
+                      <span>Déconnexion</span>
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              ) : (
+                <>
+                  <Button variant="outline" asChild>
+                    <Link to="/login">Connexion</Link>
+                  </Button>
+                  <Button className="bg-benin-green hover:bg-benin-green/90" asChild>
+                    <Link to="/register">Inscription</Link>
+                  </Button>
+                </>
+              )}
             </div>
           </div>
 
@@ -156,14 +212,50 @@ const Header = () => {
                   {theme === "dark" ? <Sun className="h-5 w-5" /> : <Moon className="h-5 w-5" />}
                 </Button>
               </div>
-              <div className="grid grid-cols-2 gap-3 mt-4">
-                <Button variant="outline" className="w-full" asChild>
-                  <Link to="/login" onClick={() => setIsMenuOpen(false)}>Connexion</Link>
-                </Button>
-                <Button className="w-full bg-benin-green hover:bg-benin-green/90" asChild>
-                  <Link to="/register" onClick={() => setIsMenuOpen(false)}>Inscription</Link>
-                </Button>
-              </div>
+              
+              {isAuthenticated ? (
+                <div className="mt-4 space-y-3">
+                  <div className="flex items-center gap-3 p-2 rounded-lg bg-gray-100 dark:bg-gray-800">
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={user?.avatar} />
+                      <AvatarFallback>
+                        {getInitials(user?.name)}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <p className="font-medium">{user?.name}</p>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">{user?.email}</p>
+                    </div>
+                  </div>
+                  <Button
+                    variant="outline"
+                    className="w-full gap-2"
+                    asChild
+                  >
+                    <Link to="/profile" onClick={() => setIsMenuOpen(false)}>
+                      <User className="h-4 w-4" />
+                      Mon profil
+                    </Link>
+                  </Button>
+                  <Button
+                    variant="outline"
+                    className="w-full gap-2 text-red-600 hover:text-red-600 dark:text-red-400 dark:hover:text-red-400"
+                    onClick={handleLogout}
+                  >
+                    <LogOut className="h-4 w-4" />
+                    Déconnexion
+                  </Button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3 mt-4">
+                  <Button variant="outline" className="w-full" asChild>
+                    <Link to="/login" onClick={() => setIsMenuOpen(false)}>Connexion</Link>
+                  </Button>
+                  <Button className="w-full bg-benin-green hover:bg-benin-green/90" asChild>
+                    <Link to="/register" onClick={() => setIsMenuOpen(false)}>Inscription</Link>
+                  </Button>
+                </div>
+              )}
             </div>
           </div>
         </div>
