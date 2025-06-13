@@ -12,8 +12,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, ChartPie, FileText, Users, Search, Plus, Filter, TrendingUp, ArrowUpDown, Building, Briefcase, 
-  ChevronDown, ChevronUp, BarChart, ArrowRight, FileSpreadsheet, Settings, Calculator, Trash2, Eye, Download } from "lucide-react";
+import {
+  Calendar, ChartPie, FileText, Users, Search, Plus, Filter, TrendingUp, ArrowUpDown, Building, Briefcase,
+  ChevronDown, ChevronUp, BarChart, ArrowRight, FileSpreadsheet, Settings, Calculator, Trash2, Eye, Download
+} from "lucide-react";
 import { useCountry } from "@/hooks/use-country";
 import { BarChart as RechartsBarChart, Bar, XAxis, YAxis, CartesianGrid, ResponsiveContainer, PieChart, Pie, Cell, Legend, LineChart, Line, Tooltip } from "recharts";
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from "@/components/ui/chart";
@@ -29,6 +31,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form";
 import ReportModal from "@/components/modals/ReportModal";
 import { Checkbox } from "@/components/ui/checkbox";
+import { useAuth } from "@/hooks/use-auth";
 
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
@@ -124,6 +127,7 @@ const EnterpriseDashboard = () => {
   const navigate = useNavigate();
   const { country } = useCountry();
   const { toast } = useToast();
+  const { user } = useAuth();
   const currencySymbol = "FCFA";
   const [selectedPeriod, setSelectedPeriod] = useState("month");
   const [searchQuery, setSearchQuery] = useState("");
@@ -140,7 +144,7 @@ const EnterpriseDashboard = () => {
   const [showDepartmentDetails, setShowDepartmentDetails] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  
+
   const {
     employees,
     departments,
@@ -230,7 +234,7 @@ const EnterpriseDashboard = () => {
   const handleAddEmployee = async (newEmployee: Omit<Employee, "id">) => {
     try {
       setIsLoading(true);
-      
+
       // Vérifier si le département existe
       const departmentExists = departments.some(dept => dept.name === newEmployee.department);
       if (!departmentExists) {
@@ -328,15 +332,15 @@ const EnterpriseDashboard = () => {
   const filteredEmployees = React.useMemo(() => {
     try {
       return employees.filter(employee => {
-        const departmentMatch = selectedDepartmentFilter === "all" || 
+        const departmentMatch = selectedDepartmentFilter === "all" ||
           employee.department === selectedDepartmentFilter;
-        
+
         const searchLower = searchQuery.toLowerCase();
-        const searchMatch = !searchQuery || 
+        const searchMatch = !searchQuery ||
           employee.name.toLowerCase().includes(searchLower) ||
           employee.position.toLowerCase().includes(searchLower) ||
           employee.department.toLowerCase().includes(searchLower);
-        
+
         return departmentMatch && searchMatch;
       });
     } catch (err) {
@@ -366,8 +370,8 @@ const EnterpriseDashboard = () => {
   const departmentData = departments.map(dept => ({
     name: dept.name,
     value: dept.budget,
-    color: dept.name === 'Technique' ? '#4F46E5' : 
-           dept.name === 'Commercial' ? '#10B981' : '#F59E0B'
+    color: dept.name === 'Technique' ? '#4F46E5' :
+      dept.name === 'Commercial' ? '#10B981' : '#F59E0B'
   }));
 
   // Fix the Line component dot prop
@@ -376,28 +380,28 @@ const EnterpriseDashboard = () => {
     if (payload?.event) {
       return (
         <svg>
-          <circle 
+          <circle
             key={`dot-${index}-${cx}-${cy}`}
-            cx={cx} 
-            cy={cy ? cy - 20 : 0} 
-            r={6} 
-            fill="#f44336" 
-            stroke="white" 
-            strokeWidth={1} 
+            cx={cx}
+            cy={cy ? cy - 20 : 0}
+            r={6}
+            fill="#f44336"
+            stroke="white"
+            strokeWidth={1}
           />
         </svg>
       );
     }
     return (
       <svg>
-        <circle 
+        <circle
           key={`dot-${index}-${cx}-${cy}`}
-          cx={cx} 
-          cy={cy} 
-          r={4} 
-          fill="white" 
-          stroke="#2E7D32" 
-          strokeWidth={2} 
+          cx={cx}
+          cy={cy}
+          r={4}
+          fill="white"
+          stroke="#2E7D32"
+          strokeWidth={2}
         />
       </svg>
     );
@@ -424,7 +428,7 @@ const EnterpriseDashboard = () => {
 
   const handleUpdateEmployee = async (updatedEmployee: Employee) => {
     if (!selectedEmployee) return;
-    
+
     try {
       setIsLoading(true);
       const updates: Partial<Employee> = {
@@ -434,7 +438,7 @@ const EnterpriseDashboard = () => {
         grossSalary: updatedEmployee.grossSalary,
         benefits: updatedEmployee.benefits
       };
-      
+
       updateEmployee(selectedEmployee.id, updates);
       toast({
         title: "Employé modifié",
@@ -483,7 +487,7 @@ const EnterpriseDashboard = () => {
           ...data
         }
       }));
-      
+
       toast({
         title: "Mise à jour réussie",
         description: "Les informations de l'entreprise ont été mises à jour.",
@@ -507,7 +511,7 @@ const EnterpriseDashboard = () => {
           ...data
         }
       }));
-      
+
       toast({
         title: "Mise à jour réussie",
         description: "Les paramètres de paie ont été mis à jour.",
@@ -555,7 +559,7 @@ const EnterpriseDashboard = () => {
     try {
       // Validation des données
       const validatedData = companySettingsSchema.parse(data);
-      
+
       // Mise à jour des paramètres
       setCompanySettings(prev => ({
         ...prev,
@@ -599,7 +603,7 @@ const EnterpriseDashboard = () => {
                   <Building className="h-6 w-6 text-primary" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold">Technoplus Bénin SARL</h1>
+                  <h1 className="text-2xl font-bold">{user?.company || "Nom de l'entreprise"}</h1>
                   <p className="text-sm text-muted-foreground">
                     Service RH & Paie • Pays: <span className="font-medium capitalize">{country}</span>
                   </p>
@@ -607,7 +611,7 @@ const EnterpriseDashboard = () => {
               </div>
 
               <div className="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-4">
-                <Button 
+                <Button
                   variant="outline"
                   onClick={() => navigate('/simulation/enterprise')}
                   className="flex items-center"
@@ -668,7 +672,7 @@ const EnterpriseDashboard = () => {
                 </div>
               </CardContent>
             </Card>
-            
+
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg flex items-center justify-between">
@@ -689,9 +693,9 @@ const EnterpriseDashboard = () => {
                 </div>
                 <div className="grid grid-cols-4 gap-1 mt-2">
                   {departments.map((dept) => (
-                    <div 
-                      key={dept.id} 
-                      className="bg-indigo-500 h-2 rounded-full" 
+                    <div
+                      key={dept.id}
+                      className="bg-indigo-500 h-2 rounded-full"
                       style={{
                         opacity: 0.6 + (departments.indexOf(dept) * 0.1),
                         width: `${(dept.headcount / totalEmployees) * 100}%`
@@ -701,7 +705,7 @@ const EnterpriseDashboard = () => {
                 </div>
               </CardContent>
             </Card>
-            
+
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg flex items-center justify-between">
@@ -732,7 +736,7 @@ const EnterpriseDashboard = () => {
                 </div>
               </CardContent>
             </Card>
-            
+
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg flex items-center justify-between">
@@ -748,8 +752,8 @@ const EnterpriseDashboard = () => {
                   <span className="text-muted-foreground">Totales</span>
                 </div>
                 <div className="flex h-2 mt-3 rounded-full overflow-hidden">
-                  <div className="bg-emerald-600 h-full" style={{width: `${(employerCharges / (employerCharges + employeeCharges)) * 100}%`}}></div>
-                  <div className="bg-emerald-400 h-full" style={{width: `${(employeeCharges / (employerCharges + employeeCharges)) * 100}%`}}></div>
+                  <div className="bg-emerald-600 h-full" style={{ width: `${(employerCharges / (employerCharges + employeeCharges)) * 100}%` }}></div>
+                  <div className="bg-emerald-400 h-full" style={{ width: `${(employeeCharges / (employerCharges + employeeCharges)) * 100}%` }}></div>
                 </div>
                 <div className="flex justify-between text-xs mt-1">
                   <span>Employeur: {formatCurrency(Math.round(employerCharges))}</span>
@@ -757,7 +761,7 @@ const EnterpriseDashboard = () => {
                 </div>
               </CardContent>
             </Card>
-            
+
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-lg flex items-center justify-between">
@@ -806,12 +810,12 @@ const EnterpriseDashboard = () => {
                   <LineChart data={monthlyData}>
                     <CartesianGrid strokeDasharray="3 3" vertical={false} />
                     <XAxis dataKey="month" />
-                    <YAxis tickFormatter={(value) => `${value / 1000000}M`}/>
+                    <YAxis tickFormatter={(value) => `${value / 1000000}M`} />
                     <Tooltip formatter={(value) => formatCurrency(value as number)} />
-                    <Line 
-                      type="monotone" 
-                      dataKey="salary" 
-                      stroke="#2E7D32" 
+                    <Line
+                      type="monotone"
+                      dataKey="salary"
+                      stroke="#2E7D32"
                       strokeWidth={3}
                       dot={renderCustomDot}
                       activeDot={{ r: 6 }}
@@ -948,7 +952,7 @@ const EnterpriseDashboard = () => {
                         const deptEmployees = employees.filter(emp => emp.department === dept.name);
                         const totalSalary = deptEmployees.reduce((sum, emp) => sum + emp.grossSalary, 0);
                         const growthRate = ((totalSalary - dept.budget) / dept.budget) * 100;
-                        
+
                         return (
                           <TableRow key={dept.id}>
                             <TableCell className="font-medium">
@@ -981,7 +985,7 @@ const EnterpriseDashboard = () => {
                             </TableCell>
                             <TableCell>
                               <div className="flex items-center">
-                                <Badge 
+                                <Badge
                                   variant={growthRate > 0 ? "success" : "destructive"}
                                   className="text-xs"
                                 >
@@ -999,33 +1003,33 @@ const EnterpriseDashboard = () => {
                                 )}
                               </div>
                             </TableCell>
-                          <TableCell>
-                            <div className="flex space-x-2">
-                                <Button 
-                                  variant="ghost" 
+                            <TableCell>
+                              <div className="flex space-x-2">
+                                <Button
+                                  variant="ghost"
                                   size="sm"
                                   onClick={() => handleViewDepartment(dept)}
                                 >
                                   <Eye className="h-4 w-4" />
                                 </Button>
-                                <Button 
-                                  variant="ghost" 
+                                <Button
+                                  variant="ghost"
                                   size="sm"
                                   onClick={() => handleEditDepartment(dept)}
                                 >
-                                <ChevronDown className="h-4 w-4" />
-                              </Button>
-                                <Button 
-                                  variant="outline" 
-                                  size="sm" 
+                                  <ChevronDown className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="outline"
+                                  size="sm"
                                   onClick={() => handleDeleteDepartment(dept.id)}
                                   className="text-red-500 hover:text-red-700"
                                 >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
                         );
                       })}
                     </TableBody>
@@ -1053,32 +1057,32 @@ const EnterpriseDashboard = () => {
                   </div>
                   <div className="flex space-x-2">
                     <div className="flex items-center space-x-2">
-                    <div className="relative">
-                      <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
-                      <Input 
-                        type="text" 
-                          placeholder="Rechercher un employé..." 
+                      <div className="relative">
+                        <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+                        <Input
+                          type="text"
+                          placeholder="Rechercher un employé..."
                           className="pl-8 w-[250px]"
                           value={searchQuery}
                           onChange={(e) => setSearchQuery(e.target.value)}
-                      />
-                    </div>
-                    <Select 
-                      value={selectedDepartmentFilter}
-                      onValueChange={setSelectedDepartmentFilter}
-                    >
-                      <SelectTrigger className="w-[180px]">
-                        <SelectValue placeholder="Filtrer par département" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">Tous les départements</SelectItem>
-                        {departments.map((dept) => (
-                          <SelectItem key={dept.id} value={dept.name || `dept-${dept.id}`}>
-                            {dept.name}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                        />
+                      </div>
+                      <Select
+                        value={selectedDepartmentFilter}
+                        onValueChange={setSelectedDepartmentFilter}
+                      >
+                        <SelectTrigger className="w-[180px]">
+                          <SelectValue placeholder="Filtrer par département" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="all">Tous les départements</SelectItem>
+                          {departments.map((dept) => (
+                            <SelectItem key={dept.id} value={dept.name || `dept-${dept.id}`}>
+                              {dept.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </div>
                     <Button onClick={() => setShowAddEmployee(true)}>
                       <Plus className="mr-2 h-4 w-4" />
@@ -1100,8 +1104,8 @@ const EnterpriseDashboard = () => {
                       <Users className="h-12 w-12 text-muted-foreground mb-4" />
                       <h3 className="font-medium mb-2">Aucun employé trouvé</h3>
                       <p className="text-sm text-muted-foreground mb-4">
-                        {searchQuery || selectedDepartmentFilter !== "all" 
-                          ? "Aucun employé ne correspond à vos critères de recherche" 
+                        {searchQuery || selectedDepartmentFilter !== "all"
+                          ? "Aucun employé ne correspond à vos critères de recherche"
                           : "Commencez par ajouter des employés à votre entreprise"}
                       </p>
                       <Button onClick={() => setShowAddEmployee(true)}>
@@ -1125,15 +1129,15 @@ const EnterpriseDashboard = () => {
                       </TableHeader>
                       <TableBody>
                         {filteredEmployees.map((employee) => {
-                          const totalBenefits = (employee.benefits.transport || 0) + 
-                                              (employee.benefits.housing || 0) + 
-                                              (employee.benefits.performance || 0);
+                          const totalBenefits = (employee.benefits.transport || 0) +
+                            (employee.benefits.housing || 0) +
+                            (employee.benefits.performance || 0);
                           const employerCost = employee.grossSalary * 1.154 + totalBenefits;
                           const department = departments.find(d => d.name === employee.department);
-                          
+
                           return (
-                          <TableRow key={employee.id}>
-                            <TableCell>
+                            <TableRow key={employee.id}>
+                              <TableCell>
                                 <div className="flex items-center">
                                   <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center mr-2">
                                     <Users className="h-4 w-4 text-primary" />
@@ -1190,7 +1194,7 @@ const EnterpriseDashboard = () => {
                                 </div>
                               </TableCell>
                               <TableCell className="text-center">
-                                <Badge 
+                                <Badge
                                   variant={employee.grossSalary > 500000 ? "success" : "default"}
                                   className="font-normal"
                                 >
@@ -1199,31 +1203,31 @@ const EnterpriseDashboard = () => {
                               </TableCell>
                               <TableCell>
                                 <div className="flex justify-end space-x-2">
-                                  <Button 
-                                    variant="ghost" 
+                                  <Button
+                                    variant="ghost"
                                     size="sm"
                                     onClick={() => handleViewEmployee(employee)}
                                   >
                                     <Eye className="h-4 w-4" />
                                   </Button>
-                                  <Button 
-                                    variant="ghost" 
+                                  <Button
+                                    variant="ghost"
                                     size="sm"
                                     onClick={() => handleEditEmployee(employee)}
                                   >
                                     <ChevronDown className="h-4 w-4" />
                                   </Button>
-                                  <Button 
-                                    variant="ghost" 
-                                    size="sm" 
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
                                     className="text-red-500 hover:text-red-700"
                                     onClick={() => handleDeleteEmployee(employee.id)}
                                   >
-                                  <Trash2 className="h-4 w-4" />
-                                </Button>
-                              </div>
-                            </TableCell>
-                          </TableRow>
+                                    <Trash2 className="h-4 w-4" />
+                                  </Button>
+                                </div>
+                              </TableCell>
+                            </TableRow>
                           );
                         })}
                       </TableBody>
@@ -1258,29 +1262,29 @@ const EnterpriseDashboard = () => {
               </Card>
 
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card>
+                <Card>
                   <CardHeader>
                     <CardTitle>Répartition par département</CardTitle>
                     <CardDescription>Distribution des effectifs</CardDescription>
-                </CardHeader>
-                <CardContent>
+                  </CardHeader>
+                  <CardContent>
                     <div className="space-y-4">
                       {departments.map(dept => {
                         const deptEmployees = employees.filter(e => e.department === dept.name);
                         const percentage = (deptEmployees.length / employees.length) * 100;
-                        
+
                         return (
                           <div key={dept.id} className="space-y-2">
                             <div className="flex justify-between text-sm">
                               <span>{dept.name}</span>
                               <span className="font-medium">{deptEmployees.length} employés</span>
-                        </div>
+                            </div>
                             <div className="w-full bg-gray-100 dark:bg-gray-800 h-2 rounded-full">
-                              <div 
-                                className="bg-primary h-full rounded-full" 
+                              <div
+                                className="bg-primary h-full rounded-full"
                                 style={{ width: `${percentage}%` }}
                               />
-                        </div>
+                            </div>
                             <div className="flex justify-between text-xs text-muted-foreground">
                               <span>{percentage.toFixed(1)}% des effectifs</span>
                               <span>Budget: {formatCurrency(dept.budget)}</span>
@@ -1288,11 +1292,11 @@ const EnterpriseDashboard = () => {
                           </div>
                         );
                       })}
-                        </div>
-                      </CardContent>
-                    </Card>
+                    </div>
+                  </CardContent>
+                </Card>
 
-                    <Card>
+                <Card>
                   <CardHeader>
                     <CardTitle>Structure des salaires</CardTitle>
                     <CardDescription>Répartition par tranche</CardDescription>
@@ -1309,30 +1313,30 @@ const EnterpriseDashboard = () => {
                           e => e.grossSalary >= bracket.min && e.grossSalary < bracket.max
                         ).length;
                         const percentage = (count / employees.length) * 100;
-                        
+
                         return (
                           <div key={bracket.range} className="space-y-2">
                             <div className="flex justify-between text-sm">
                               <span>{bracket.range}</span>
                               <span className="font-medium">{count} employés</span>
-                        </div>
+                            </div>
                             <div className="w-full bg-gray-100 dark:bg-gray-800 h-2 rounded-full">
-                              <div 
-                                className="bg-primary h-full rounded-full" 
+                              <div
+                                className="bg-primary h-full rounded-full"
                                 style={{ width: `${percentage}%` }}
                               />
-                        </div>
+                            </div>
                             <div className="text-xs text-muted-foreground">
                               {percentage.toFixed(1)}% des effectifs
                             </div>
                           </div>
                         );
                       })}
-                        </div>
-                      </CardContent>
-                    </Card>
+                    </div>
+                  </CardContent>
+                </Card>
 
-                    <Card>
+                <Card>
                   <CardHeader>
                     <CardTitle>Indicateurs RH</CardTitle>
                     <CardDescription>Métriques clés du personnel</CardDescription>
@@ -1350,11 +1354,11 @@ const EnterpriseDashboard = () => {
                           <CardContent className="pt-6">
                             <div className="text-2xl font-bold">
                               {((employees.filter(e => e.grossSalary > 500000).length / employees.length) * 100).toFixed(0)}%
-                        </div>
+                            </div>
                             <p className="text-xs text-muted-foreground">Taux d'encadrement</p>
                           </CardContent>
                         </Card>
-                        </div>
+                      </div>
 
                       <Card>
                         <CardContent className="pt-6">
@@ -1365,9 +1369,9 @@ const EnterpriseDashboard = () => {
                           <div className="w-full bg-gray-100 dark:bg-gray-800 h-2 rounded-full overflow-hidden">
                             <div className="bg-blue-500 h-full" style={{ width: '58%' }} />
                             <div className="bg-pink-500 h-full" style={{ width: '42%' }} />
-                        </div>
-                      </CardContent>
-                    </Card>
+                          </div>
+                        </CardContent>
+                      </Card>
 
                       <Card>
                         <CardContent className="pt-6">
@@ -1377,9 +1381,9 @@ const EnterpriseDashboard = () => {
                           </div>
                           <div className="w-full bg-gray-100 dark:bg-gray-800 h-2 rounded-full">
                             <div className="bg-primary h-full" style={{ width: '65%' }} />
-                  </div>
-                </CardContent>
-              </Card>
+                          </div>
+                        </CardContent>
+                      </Card>
                     </div>
                   </CardContent>
                 </Card>
@@ -1416,8 +1420,8 @@ const EnterpriseDashboard = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <Card 
-                      key="bilan-social" 
+                    <Card
+                      key="bilan-social"
                       className="border-2 border-dashed hover:border-primary/50 transition-colors group cursor-pointer"
                       onClick={() => {
                         setSelectedReportType('social');
@@ -1435,9 +1439,9 @@ const EnterpriseDashboard = () => {
                         <Badge variant="outline" className="mt-auto">Mai 2025</Badge>
                       </CardContent>
                     </Card>
-                    
-                    <Card 
-                      key="analyse-salariale" 
+
+                    <Card
+                      key="analyse-salariale"
                       className="border-2 border-dashed hover:border-primary/50 transition-colors group cursor-pointer"
                       onClick={() => {
                         setSelectedReportType('salary');
@@ -1455,9 +1459,9 @@ const EnterpriseDashboard = () => {
                         <Badge variant="outline" className="mt-auto">Avril 2025</Badge>
                       </CardContent>
                     </Card>
-                    
-                    <Card 
-                      key="previsions-budgetaires" 
+
+                    <Card
+                      key="previsions-budgetaires"
                       className="border-2 border-dashed hover:border-primary/50 transition-colors group cursor-pointer"
                       onClick={() => {
                         setSelectedReportType('budget');
@@ -1475,9 +1479,9 @@ const EnterpriseDashboard = () => {
                         <Badge variant="outline" className="mt-auto">Mai 2025</Badge>
                       </CardContent>
                     </Card>
-                    
-                    <Card 
-                      key="indicateurs-rh" 
+
+                    <Card
+                      key="indicateurs-rh"
                       className="border-2 border-dashed hover:border-primary/50 transition-colors group cursor-pointer"
                       onClick={() => {
                         setSelectedReportType('hr');
@@ -1495,9 +1499,9 @@ const EnterpriseDashboard = () => {
                         <Badge variant="outline" className="mt-auto">Mai 2025</Badge>
                       </CardContent>
                     </Card>
-                    
-                    <Card 
-                      key="nouveau-rapport" 
+
+                    <Card
+                      key="nouveau-rapport"
                       className="border-2 border-dashed hover:border-primary/50 transition-colors group cursor-pointer"
                       onClick={() => setShowReportModal(true)}
                     >
@@ -1513,7 +1517,7 @@ const EnterpriseDashboard = () => {
                   </div>
                 </CardContent>
               </Card>
-              
+
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                   <div>
@@ -1666,7 +1670,7 @@ const EnterpriseDashboard = () => {
                                   </FormItem>
                                 )}
                               />
-                              
+
                               <FormField
                                 control={settingsForm.control}
                                 name="companyInfo.legalForm"
@@ -1680,7 +1684,7 @@ const EnterpriseDashboard = () => {
                                   </FormItem>
                                 )}
                               />
-                              
+
                               <FormField
                                 control={settingsForm.control}
                                 name="companyInfo.rccm"
@@ -1694,7 +1698,7 @@ const EnterpriseDashboard = () => {
                                   </FormItem>
                                 )}
                               />
-                              
+
                               <FormField
                                 control={settingsForm.control}
                                 name="companyInfo.ifu"
@@ -1708,7 +1712,7 @@ const EnterpriseDashboard = () => {
                                   </FormItem>
                                 )}
                               />
-                              
+
                               <FormField
                                 control={settingsForm.control}
                                 name="companyInfo.creationDate"
@@ -1722,7 +1726,7 @@ const EnterpriseDashboard = () => {
                                   </FormItem>
                                 )}
                               />
-                              
+
                               <FormField
                                 control={settingsForm.control}
                                 name="companyInfo.sector"
@@ -1739,15 +1743,15 @@ const EnterpriseDashboard = () => {
                             </div>
                           </div>
                         </div>
-                        
+
                         <div>
                           <h3 className="text-lg font-semibold mb-4">Logo et identité visuelle</h3>
                           <div className="border-2 border-dashed rounded-lg p-6 flex flex-col items-center justify-center">
                             <div className="w-32 h-32 bg-gray-100 dark:bg-gray-800 rounded-lg flex items-center justify-center mb-4">
                               {companySettings.logo ? (
-                                <img 
-                                  src={companySettings.logo} 
-                                  alt="Logo de l'entreprise" 
+                                <img
+                                  src={companySettings.logo}
+                                  alt="Logo de l'entreprise"
                                   className="w-full h-full object-contain"
                                 />
                               ) : (
@@ -1759,7 +1763,7 @@ const EnterpriseDashboard = () => {
                                 <Button size="sm" asChild>
                                   <span>Changer le logo</span>
                                 </Button>
-                                <Input 
+                                <Input
                                   id="logo-upload"
                                   type="file"
                                   accept="image/*"
@@ -1768,8 +1772,8 @@ const EnterpriseDashboard = () => {
                                 />
                               </Label>
                               {companySettings.logo && (
-                                <Button 
-                                  size="sm" 
+                                <Button
+                                  size="sm"
                                   variant="outline"
                                   onClick={() => setCompanySettings(prev => ({ ...prev, logo: undefined }))}
                                 >
@@ -1780,7 +1784,7 @@ const EnterpriseDashboard = () => {
                           </div>
                         </div>
                       </div>
-                      
+
                       <div className="border-t pt-6">
                         <h3 className="text-lg font-semibold mb-4">Paramètres de paie</h3>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -1790,7 +1794,7 @@ const EnterpriseDashboard = () => {
                             render={({ field }) => (
                               <FormItem>
                                 <FormLabel>Cycle de paie</FormLabel>
-                                <Select 
+                                <Select
                                   onValueChange={field.onChange}
                                   defaultValue={field.value}
                                 >
@@ -1807,14 +1811,14 @@ const EnterpriseDashboard = () => {
                               </FormItem>
                             )}
                           />
-                          
+
                           <FormField
                             control={settingsForm.control}
                             name="payrollSettings.payDay"
                             render={({ field }) => (
                               <FormItem>
                                 <FormLabel>Jour de paie</FormLabel>
-                                <Select 
+                                <Select
                                   onValueChange={field.onChange}
                                   defaultValue={field.value}
                                 >
@@ -1831,7 +1835,7 @@ const EnterpriseDashboard = () => {
                               </FormItem>
                             )}
                           />
-                          
+
                           <FormField
                             control={settingsForm.control}
                             name="payrollSettings.cnssNumber"
@@ -1845,7 +1849,7 @@ const EnterpriseDashboard = () => {
                               </FormItem>
                             )}
                           />
-                          
+
                           <div className="md:col-span-3">
                             <FormField
                               control={settingsForm.control}
@@ -1932,7 +1936,7 @@ const EnterpriseDashboard = () => {
                   <div className="font-medium">{formatCurrency(selectedEmployee.grossSalary)}</div>
                 </div>
               </div>
-              
+
               <div>
                 <Label>Avantages</Label>
                 <div className="flex gap-2 mt-1">
@@ -1947,12 +1951,12 @@ const EnterpriseDashboard = () => {
                   )}
                 </div>
               </div>
-              
+
               <div>
                 <Label>Coût total employeur</Label>
                 <div className="font-medium">
                   {formatCurrency(
-                    selectedEmployee.grossSalary * 1.154 + 
+                    selectedEmployee.grossSalary * 1.154 +
                     (selectedEmployee.benefits.transport || 0) +
                     (selectedEmployee.benefits.housing || 0) +
                     (selectedEmployee.benefits.performance || 0)
@@ -1999,15 +2003,15 @@ const EnterpriseDashboard = () => {
                     </FormItem>
                   )}
                 />
-                
+
                 <FormField
                   control={form.control}
                   name="department"
                   render={({ field }) => (
                     <FormItem>
                       <FormLabel>Département</FormLabel>
-                      <Select 
-                        onValueChange={field.onChange} 
+                      <Select
+                        onValueChange={field.onChange}
                         defaultValue={departments[0]?.name || "default"}
                         value={field.value || departments[0]?.name || "default"}
                       >
@@ -2025,7 +2029,7 @@ const EnterpriseDashboard = () => {
                     </FormItem>
                   )}
                 />
-                
+
                 <FormField
                   control={form.control}
                   name="position"
@@ -2038,7 +2042,7 @@ const EnterpriseDashboard = () => {
                     </FormItem>
                   )}
                 />
-                
+
                 <FormField
                   control={form.control}
                   name="grossSalary"
@@ -2046,16 +2050,16 @@ const EnterpriseDashboard = () => {
                     <FormItem>
                       <FormLabel>Salaire brut</FormLabel>
                       <FormControl>
-                        <Input 
-                          type="number" 
-                          {...field} 
+                        <Input
+                          type="number"
+                          {...field}
                           onChange={e => field.onChange(Number(e.target.value))}
                         />
                       </FormControl>
                     </FormItem>
                   )}
                 />
-                
+
                 <div className="space-y-2">
                   <Label>Avantages</Label>
                   <div className="grid grid-cols-3 gap-4">
@@ -2066,16 +2070,16 @@ const EnterpriseDashboard = () => {
                         <FormItem>
                           <FormLabel>Transport</FormLabel>
                           <FormControl>
-                            <Input 
-                              type="number" 
-                              {...field} 
+                            <Input
+                              type="number"
+                              {...field}
                               onChange={e => field.onChange(Number(e.target.value))}
                             />
                           </FormControl>
                         </FormItem>
                       )}
                     />
-                    
+
                     <FormField
                       control={form.control}
                       name="benefits.housing"
@@ -2083,16 +2087,16 @@ const EnterpriseDashboard = () => {
                         <FormItem>
                           <FormLabel>Logement</FormLabel>
                           <FormControl>
-                            <Input 
-                              type="number" 
-                              {...field} 
+                            <Input
+                              type="number"
+                              {...field}
                               onChange={e => field.onChange(Number(e.target.value))}
                             />
                           </FormControl>
                         </FormItem>
                       )}
                     />
-                    
+
                     <FormField
                       control={form.control}
                       name="benefits.performance"
@@ -2100,9 +2104,9 @@ const EnterpriseDashboard = () => {
                         <FormItem>
                           <FormLabel>Performance</FormLabel>
                           <FormControl>
-                            <Input 
-                              type="number" 
-                              {...field} 
+                            <Input
+                              type="number"
+                              {...field}
                               onChange={e => field.onChange(Number(e.target.value))}
                             />
                           </FormControl>

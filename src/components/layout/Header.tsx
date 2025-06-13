@@ -124,10 +124,10 @@ const Header = () => {
                     </DropdownMenuItem>
                     <DropdownMenuItem
                       onClick={handleLogout}
-                      className="text-red-600 focus:text-red-600 dark:text-red-400 dark:focus:text-red-400"
+                      className="text-red-600 dark:text-red-400 dark:focus:text-red-400"
                     >
                       <LogOut className="h-4 w-4 mr-2" />
-                      <span>Déconnexion</span>
+                      <span className="">Déconnexion</span>
                     </DropdownMenuItem>
                   </DropdownMenuContent>
                 </DropdownMenu>
