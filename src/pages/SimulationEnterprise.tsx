@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Calculator, Download, Plus, Trash2, Users, Building, PieChart, BarChart2, HelpCircle, Filter, Search } from "lucide-react";
+import { ArrowLeft, Calculator, Download, Plus, Trash2, Users, Building, PieChart, BarChart2, HelpCircle, Filter, Search, Eye, Edit, Send, UserCheck } from "lucide-react";
 import Layout from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -12,15 +12,16 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { useCountry } from "@/hooks/use-country.tsx";
-import { Eye } from "lucide-react";
-import { SalaryDistributionChart, DepartmentChart, MonthlyEvolutionChart, BudgetProjectionChart } from "@/components/simulation/EnterpriseCharts";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { useCountry } from "@/hooks/use-country";
+import { SalaryDistributionChart, DepartmentChart, MonthlyEvolutionChart, BudgetProjectionChart } from "@/components/simulation/EnterpriseCharts";
 import { toast } from "sonner";
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
 import { Loader2 } from "lucide-react";
+import { usePayrollStore } from "@/stores/payroll.store";
 
+// Types intégrés avec le dashboard
 interface Employee {
   id: string;
   name: string;
@@ -32,6 +33,30 @@ interface Employee {
     housing?: number;
     performance?: number;
   };
+  familyStatus?: string;
+  children?: number;
+  email?: string;
+  phone?: string;
+  hireDate?: string;
+}
+
+interface Department {
+  id: string;
+  name: string;
+  headcount: number;
+  budget: number;
+  plannedPositions: number;
+  manager?: string;
+}
+
+interface SimulationResult {
+  employee: Employee;
+  grossSalary: number;
+  netSalary: number;
+  socialContributions: number;
+  incomeTax: number;
+  totalCost: number;
+  details: any;
 }
 
 interface MonthlyData {
@@ -40,27 +65,40 @@ interface MonthlyData {
   employeeCount: number;
 }
 
-const SimulationEnterprise = () => {
+const SimulationEnterprise: React.FC = () => {
   const navigate = useNavigate();
   const { country } = useCountry();
-  const [isLoading, setIsLoading] = useState(true);
+  const [isLoading, setIsLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("overview");
   const [searchTerm, setSearchTerm] = useState("");
   const [showFilters, setShowFilters] = useState(false);
-  const [showAddEmployeeModal, setShowAddEmployeeModal] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [showEmployeeDetails, setShowEmployeeDetails] = useState(false);
+  const [showEmployeeSimulation, setShowEmployeeSimulation] = useState(false);
+  const [showSendBulletin, setShowSendBulletin] = useState(false);
+  const [simulationResults, setSimulationResults] = useState<SimulationResult[]>([]);
   const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([]);
-  const [newEmployee, setNewEmployee] = useState({
-    name: "",
-    department: "",
-    position: "",
-    salary: 0,
-    status: "active"
-  });
+  
+  // Intégration avec le store du dashboard
+  const {
+    employees,
+    departments,
+    totalGrossSalary,
+    totalBenefits,
+    socialContributions,
+    netSalaries,
+    totalCost,
+    removeEmployee,
+    updateEmployee,
+    calculateStats
+  } = usePayrollStore();
+
   const [filters, setFilters] = useState({
     department: "all",
     minSalary: 0,
     maxSalary: 2000000
   });
+
   const [showAdvancedSimulationModal, setShowAdvancedSimulationModal] = useState(false);
   const [advancedSimulationParams, setAdvancedSimulationParams] = useState({
     period: "12",
@@ -68,54 +106,80 @@ const SimulationEnterprise = () => {
     inflationRate: "2",
     includeBenefits: true
   });
-  
-  const [employees, setEmployees] = useState<Employee[]>([
-    {
-      id: "1",
-      name: "Marie Koné",
-      position: "Responsable Ventes",
-      department: "Commercial",
-      grossSalary: 650000,
-      benefits: {
-        transport: 25000,
-        performance: 50000,
+
+  // Calculs conformes aux normes du Bénin et du Togo
+  const calculateSalaryDetails = (employee: Employee) => {
+    const totalGross = employee.grossSalary + 
+      (employee.benefits.transport || 0) + 
+      (employee.benefits.housing || 0) + 
+      (employee.benefits.performance || 0);
+
+    let socialContribEmployee = 0;
+    let incomeTax = 0;
+    let employerCharges = 0;
+
+    if (country === "benin") {
+      // Calculs pour le Bénin
+      socialContribEmployee = Math.round(totalGross * 0.036); // 3.6% CNSS
+      employerCharges = Math.round(totalGross * 0.214); // 21.4% charges patronales
+      
+      // Calcul ITS simplifié
+      const taxableIncome = totalGross - socialContribEmployee - (totalGross * 0.20); // Frais pro 20%
+      
+      if (taxableIncome <= 50000) {
+        incomeTax = 0;
+      } else if (taxableIncome <= 130000) {
+        incomeTax = (taxableIncome - 50000) * 0.10;
+      } else if (taxableIncome <= 280000) {
+        incomeTax = 8000 + (taxableIncome - 130000) * 0.15;
+      } else if (taxableIncome <= 580000) {
+        incomeTax = 30500 + (taxableIncome - 280000) * 0.20;
+      } else {
+        incomeTax = 90500 + (taxableIncome - 580000) * 0.25;
       }
-    },
-    {
-      id: "2",
-      name: "Paul Agossou",
-      position: "Développeur Frontend",
-      department: "Technique",
-      grossSalary: 450000,
-      benefits: {
-        transport: 20000,
-      }
-    },
-    {
-      id: "3",
-      name: "Sophie Mensah",
-      position: "Assistante RH",
-      department: "Ressources Humaines",
-      grossSalary: 380000,
-      benefits: {
-        transport: 15000,
-      }
-    },
-    {
-      id: "4",
-      name: "Jean Koffi",
-      position: "Directeur Technique",
-      department: "Technique",
-      grossSalary: 950000,
-      benefits: {
-        transport: 30000,
-        housing: 150000,
-        performance: 150000,
+    } else {
+      // Calculs pour le Togo
+      socialContribEmployee = Math.round(totalGross * 0.09); // 9% CNSS
+      employerCharges = Math.round(totalGross * 0.215); // 21.5% charges patronales
+      
+      // Calcul IRPP simplifié
+      const taxableIncome = totalGross - socialContribEmployee - (totalGross * 0.20); // Frais pro 20%
+      
+      if (taxableIncome <= 50000) {
+        incomeTax = 0;
+      } else if (taxableIncome <= 130000) {
+        incomeTax = (taxableIncome - 50000) * 0.05;
+      } else if (taxableIncome <= 280000) {
+        incomeTax = 4000 + (taxableIncome - 130000) * 0.10;
+      } else if (taxableIncome <= 580000) {
+        incomeTax = 19000 + (taxableIncome - 280000) * 0.15;
+      } else if (taxableIncome <= 1000000) {
+        incomeTax = 64000 + (taxableIncome - 580000) * 0.20;
+      } else {
+        incomeTax = 148000 + (taxableIncome - 1000000) * 0.25;
       }
     }
-  ]);
 
-  // Filter employees based on search term and filters
+    const netSalary = totalGross - socialContribEmployee - Math.round(incomeTax);
+    const totalEmployerCost = totalGross + employerCharges;
+
+    return {
+      grossSalary: totalGross,
+      netSalary,
+      socialContributions: socialContribEmployee,
+      incomeTax: Math.round(incomeTax),
+      employerCharges,
+      totalCost: totalEmployerCost,
+      details: {
+        country,
+        taxableIncome: totalGross - socialContribEmployee,
+        professionalExpenses: Math.round(totalGross * 0.20),
+        benefits: employee.benefits
+      }
+    };
+  };
+
+  // Filtrer les employés selon les critères
   const filteredEmployees = employees.filter(employee => {
     const matchesSearch = 
       employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -128,54 +192,6 @@ const SimulationEnterprise = () => {
     return matchesSearch && matchesDepartment && matchesSalary;
   });
 
-  // Calculate total payroll stats
-  const calculateStats = () => {
-    const totalGrossSalary = employees.reduce((sum, emp) => sum + emp.grossSalary, 0);
-    
-    const totalBenefits = employees.reduce((sum, emp) => {
-      return sum + 
-        (emp.benefits.transport || 0) + 
-        (emp.benefits.housing || 0) + 
-        (emp.benefits.performance || 0);
-    }, 0);
-    
-    const socialContributions = totalGrossSalary * 0.154; // 15.4% employer contributions
-    const netSalaries = employees.reduce((sum, emp) => {
-      const employeeSocialContribution = emp.grossSalary * 0.036; // 3.6% employee contribution
-      const taxableIncome = emp.grossSalary - employeeSocialContribution;
-      
-      // Simplified tax calculation
-      let incomeTax = 0;
-      if (taxableIncome <= 50000) {
-        incomeTax = 0;
-      } else if (taxableIncome <= 130000) {
-        incomeTax = (taxableIncome - 50000) * 0.1;
-      } else if (taxableIncome <= 280000) {
-        incomeTax = 8000 + (taxableIncome - 130000) * 0.15;
-      } else if (taxableIncome <= 530000) {
-        incomeTax = 30500 + (taxableIncome - 280000) * 0.2;
-      } else {
-        incomeTax = 80500 + (taxableIncome - 530000) * 0.35;
-      }
-      
-      const netSalary = emp.grossSalary - employeeSocialContribution - incomeTax;
-      return sum + netSalary;
-    }, 0);
-    
-    const totalCost = totalGrossSalary + totalBenefits + socialContributions;
-    
-    return {
-      totalGrossSalary,
-      totalBenefits,
-      socialContributions,
-      netSalaries,
-      totalCost,
-      employeeCount: employees.length
-    };
-  };
-
-  const stats = calculateStats();
-
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('fr-FR', {
       style: 'currency',
@@ -185,131 +201,86 @@ const SimulationEnterprise = () => {
     }).format(value);
   };
 
-  const handleAddEmployee = () => {
-    const employee: Employee = {
-      id: (employees.length + 1).toString(),
-      name: newEmployee.name,
-      department: newEmployee.department,
-      position: newEmployee.position,
-      grossSalary: newEmployee.salary,
-      benefits: {}
-    };
-    
-    setEmployees(prev => [...prev, employee]);
-    setShowAddEmployeeModal(false);
-    setNewEmployee({
-      name: "",
-      department: "",
-      position: "",
-      salary: 0,
-      status: "active"
-    });
+  // Voir les détails d'un employé
+  const handleViewEmployee = (employee: Employee) => {
+    setSelectedEmployee(employee);
+    setShowEmployeeDetails(true);
   };
 
-  // Add useEffect for loading simulation
-  useEffect(() => {
-    const loadSimulation = async () => {
-      try {
-        // Simulate loading time
-        await new Promise(resolve => setTimeout(resolve, 1500));
-        setIsLoading(false);
-      } catch (error) {
-        console.error("Error loading simulation:", error);
-        setIsLoading(false);
-      }
-    };
+  // Simuler le salaire d'un employé
+  const handleSimulateEmployee = (employee: Employee) => {
+    setSelectedEmployee(employee);
+    setShowEmployeeSimulation(true);
+  };
 
-    loadSimulation();
-  }, []);
-
-  const handleDownloadReport = () => {
-    const doc = new jsPDF();
-    
-    // Add title
-    doc.setFontSize(20);
-    doc.text("Rapport de Simulation Entreprise", 20, 20);
-    
-    // Add date
-    doc.setFontSize(12);
-    doc.text(`Date: ${new Date().toLocaleDateString()}`, 20, 30);
-    
-    // Add general stats
-    doc.setFontSize(16);
-    doc.text("Statistiques Générales", 20, 45);
-    doc.setFontSize(12);
-    doc.text(`Nombre total d'employés: ${employees.length}`, 20, 55);
-    doc.text(`Masse salariale totale: ${formatCurrency(stats.totalGrossSalary)}`, 20, 65);
-    doc.text(`Salaire moyen: ${formatCurrency(stats.totalGrossSalary / stats.employeeCount)}`, 20, 75);
-    
-    // Add department distribution
-    doc.setFontSize(16);
-    doc.text("Répartition par Département", 20, 95);
-    doc.setFontSize(12);
-    
-    let yPos = 105;
-    const departmentCounts = employees.reduce((acc, emp) => {
-      acc[emp.department] = (acc[emp.department] || 0) + 1;
-      return acc;
-    }, {} as Record<string, number>);
-
-    Object.entries(departmentCounts).forEach(([dept, count]) => {
-      doc.text(`${dept}: ${count} employés`, 20, yPos);
-      yPos += 10;
-    });
-    
-    // Add employee list
-    doc.setFontSize(16);
-    doc.text("Liste des Employés", 20, yPos + 10);
-    doc.setFontSize(12);
-    
-    const employeeData = employees.map(emp => [
-      emp.name,
-      emp.department,
-      emp.position,
-      formatCurrency(emp.grossSalary)
-    ]);
-    
-    doc.autoTable({
-      startY: yPos + 20,
-      head: [['Nom', 'Département', 'Poste', 'Salaire']],
-      body: employeeData
-    });
-    
-    // Add monthly projections if available
-    if (monthlyData.length > 0) {
-      const lastY = (doc as any).lastAutoTable.finalY || yPos + 20;
-      doc.setFontSize(16);
-      doc.text("Projections Salariales", 20, lastY + 20);
-      doc.setFontSize(12);
-      
-      const projectionData = monthlyData.map(data => [
-        `Mois ${data.month}`,
-        formatCurrency(data.projectedSalary),
-        data.employeeCount.toString()
-      ]);
-      
-      doc.autoTable({
-        startY: lastY + 30,
-        head: [['Période', 'Salaire Projeté', 'Nombre d\'employés']],
-        body: projectionData
-      });
+  // Supprimer un employé
+  const handleDeleteEmployee = (employeeId: string) => {
+    const employee = employees.find(emp => emp.id === employeeId);
+    if (employee) {
+      removeEmployee(employeeId);
+      toast.success(`${employee.name} a été supprimé de la liste`);
     }
-    
-    // Save the PDF
-    doc.save('rapport-simulation-entreprise.pdf');
-    toast.success("Rapport généré avec succès");
   };
 
+  // Envoyer le bulletin de paie
+  const handleSendBulletin = (employee: Employee) => {
+    setSelectedEmployee(employee);
+    setShowSendBulletin(true);
+  };
+
+  // Confirmer l'envoi du bulletin
+  const confirmSendBulletin = async () => {
+    if (!selectedEmployee) return;
+
+    try {
+      setIsLoading(true);
+      
+      // Simuler l'envoi du bulletin
+      await new Promise(resolve => setTimeout(resolve, 2000));
+      
+      toast.success(`Bulletin de paie envoyé à ${selectedEmployee.name}`);
+      setShowSendBulletin(false);
+      setSelectedEmployee(null);
+    } catch (error) {
+      toast.error("Erreur lors de l'envoi du bulletin");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Calculer les statistiques globales
+  const calculateGlobalStats = () => {
+    const totalEmployees = employees.length;
+    const avgSalary = totalEmployees > 0 ? Math.round(totalGrossSalary / totalEmployees) : 0;
+    const totalEmployerCost = employees.reduce((sum, emp) => {
+      const details = calculateSalaryDetails(emp);
+      return sum + details.totalCost;
+    }, 0);
+
+    return {
+      totalEmployees,
+      totalGrossSalary,
+      avgSalary,
+      totalEmployerCost,
+      totalNetSalaries: employees.reduce((sum, emp) => {
+        const details = calculateSalaryDetails(emp);
+        return sum + details.netSalary;
+      }, 0)
+    };
+  };
+
+  const stats = calculateGlobalStats();
+
+  // Simulation avancée
   const handleAdvancedSimulation = () => {
-    // Calculer les projections
     const months = parseInt(advancedSimulationParams.period);
     const growthRate = parseFloat(advancedSimulationParams.growthRate) / 100;
     const inflationRate = parseFloat(advancedSimulationParams.inflationRate) / 100;
 
     const projections = Array.from({ length: months }, (_, i) => {
       const month = i + 1;
-      const salaryGrowth = Math.pow(1 + growthRate, month);
-      const inflationAdjustment = Math.pow(1 + inflationRate, month);
+      const salaryGrowth = Math.pow(1 + growthRate, month / 12);
+      const inflationAdjustment = Math.pow(1 + inflationRate, month / 12);
       
       const projectedSalary = employees.reduce((sum, emp) => {
         const baseSalary = emp.grossSalary;
@@ -324,75 +295,79 @@ const SimulationEnterprise = () => {
       };
     });
 
-    // Mettre à jour les données pour les graphiques
     setMonthlyData(projections);
     setShowAdvancedSimulationModal(false);
     toast.success("Simulation avancée lancée avec succès");
   };
 
+  // Télécharger le rapport
+  const handleDownloadReport = () => {
+    const doc = new jsPDF();
+    
+    // En-tête
+    doc.setFontSize(20);
+    doc.text("Rapport de Simulation Entreprise", 20, 20);
+    
+    doc.setFontSize(12);
+    doc.text(`Date: ${new Date().toLocaleDateString()}`, 20, 30);
+    doc.text(`Pays: ${country === 'benin' ? 'Bénin' : 'Togo'}`, 20, 40);
+    
+    // Statistiques générales
+    doc.setFontSize(16);
+    doc.text("Statistiques Générales", 20, 55);
+    doc.setFontSize(12);
+    doc.text(`Nombre total d'employés: ${stats.totalEmployees}`, 20, 65);
+    doc.text(`Masse salariale totale: ${formatCurrency(stats.totalGrossSalary)}`, 20, 75);
+    doc.text(`Salaire moyen: ${formatCurrency(stats.avgSalary)}`, 20, 85);
+    doc.text(`Coût total employeur: ${formatCurrency(stats.totalEmployerCost)}`, 20, 95);
+    
+    // Liste des employés avec simulations
+    const employeeData = employees.map(emp => {
+      const details = calculateSalaryDetails(emp);
+      return [
+        emp.name,
+        emp.department,
+        emp.position,
+        formatCurrency(emp.grossSalary),
+        formatCurrency(details.netSalary),
+        formatCurrency(details.totalCost)
+      ];
+    });
+    
+    (doc as any).autoTable({
+      startY: 110,
+      head: [['Nom', 'Département', 'Poste', 'Salaire Brut', 'Salaire Net', 'Coût Total']],
+      body: employeeData
+    });
+    
+    doc.save('rapport-simulation-entreprise.pdf');
+    toast.success("Rapport généré avec succès");
+  };
+
   // Calculer les données pour les graphiques
   const calculateChartData = () => {
-    // Données pour le graphique de répartition de la masse salariale
     const salaryDistributionData = [
       { name: "Salaires bruts", value: stats.totalGrossSalary },
-      { name: "Cotisations sociales", value: stats.socialContributions },
-      { name: "Charges patronales", value: stats.totalGrossSalary * 0.225 },
-      { name: "Primes et avantages", value: stats.totalBenefits }
+      { name: "Charges sociales", value: socialContributions },
+      { name: "Avantages", value: totalBenefits }
     ];
 
-    // Données pour le graphique par département
-    const departmentData = employees.reduce((acc, emp) => {
-      const dept = acc.find(d => d.name === emp.department);
-      if (dept) {
-        dept.salary += emp.grossSalary;
-        dept.employees += 1;
-      } else {
-        acc.push({
-          name: emp.department,
-          salary: emp.grossSalary,
-          employees: 1
-        });
-      }
-      return acc;
-    }, [] as { name: string; salary: number; employees: number }[]);
-
-    // Données pour l'évolution mensuelle
-    const monthlyData = Array.from({ length: 6 }, (_, i) => {
-      const month = new Date(2024, i, 1).toLocaleString('fr-FR', { month: 'short' });
-      const monthEmployees = employees.filter(emp => {
-        // Simuler une croissance mensuelle
-        const growthFactor = 1 + (i * 0.02); // 2% de croissance par mois
-        return emp.grossSalary * growthFactor;
-      });
+    const departmentData = departments.map(dept => {
+      const deptEmployees = employees.filter(emp => emp.department === dept.name);
+      const deptSalary = deptEmployees.reduce((sum, emp) => sum + emp.grossSalary, 0);
       
       return {
-        month,
-        salary: monthEmployees.reduce((sum, emp) => sum + emp.grossSalary, 0),
-        employees: monthEmployees.length
+        name: dept.name,
+        salary: deptSalary,
+        employees: deptEmployees.length,
+        budget: dept.budget
       };
     });
 
-    return {
-      salaryDistributionData,
-      departmentData,
-      monthlyData
-    };
+    return { salaryDistributionData, departmentData };
   };
 
   const chartData = calculateChartData();
-
-  if (isLoading) {
-    return (
-      <Layout>
-        <div className="flex items-center justify-center min-h-screen">
-          <div className="flex flex-col items-center space-y-4">
-            <Loader2 className="h-8 w-8 animate-spin text-benin-green" />
-            <p className="text-lg font-medium">Chargement de la simulation...</p>
-          </div>
-        </div>
-      </Layout>
-    );
-  }
 
   return (
     <Layout>
@@ -403,14 +378,14 @@ const SimulationEnterprise = () => {
               <Button 
                 variant="ghost" 
                 className="mr-2"
-                onClick={() => navigate(-1)}
+                onClick={() => navigate('/enterprise-dashboard')}
               >
                 <ArrowLeft className="h-4 w-4" />
               </Button>
               <h1 className="text-3xl font-bold">Simulateur Entreprise</h1>
             </div>
             <p className="text-muted-foreground">
-              Gérez votre masse salariale et planifiez vos budgets RH
+              Gérez votre masse salariale et simulez les salaires • {stats.totalEmployees} employés
             </p>
           </div>
           
@@ -436,11 +411,11 @@ const SimulationEnterprise = () => {
             </TabsTrigger>
             <TabsTrigger value="employees">
               <Users className="h-4 w-4 mr-2" />
-              Employés
+              Employés ({employees.length})
             </TabsTrigger>
             <TabsTrigger value="departments">
               <Building className="h-4 w-4 mr-2" />
-              Départements
+              Départements ({departments.length})
             </TabsTrigger>
             <TabsTrigger value="projections">
               <BarChart2 className="h-4 w-4 mr-2" />
@@ -458,8 +433,8 @@ const SimulationEnterprise = () => {
                 </CardHeader>
                 <CardContent>
                   <div className="text-3xl font-bold text-benin-green">{formatCurrency(stats.totalGrossSalary)}</div>
-                  <div className="flex items-center mt-1 text-xs text-muted-foreground">
-                    <span>Moyenne par employé: {formatCurrency(stats.totalGrossSalary / stats.employeeCount)}</span>
+                  <div className="flex items-center mt-1 text-xs">
+                    <span className="text-muted-foreground">Moyenne: {formatCurrency(stats.avgSalary)}</span>
                   </div>
                 </CardContent>
               </Card>
@@ -470,172 +445,64 @@ const SimulationEnterprise = () => {
                   <CardDescription>Employés actifs</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold">{stats.employeeCount}</div>
+                  <div className="text-3xl font-bold">{stats.totalEmployees}</div>
                   <div className="flex items-center mt-1">
-                    <Badge variant="success" className="text-xs">+2 ce mois</Badge>
+                    <Badge variant="secondary" className="text-xs">
+                      {departments.length} départements
+                    </Badge>
                   </div>
                 </CardContent>
               </Card>
               
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-lg">Charges sociales</CardTitle>
-                  <CardDescription>Cotisations employeur</CardDescription>
+                  <CardTitle className="text-lg">Salaires nets</CardTitle>
+                  <CardDescription>Total mensuel</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold text-togo-red">{formatCurrency(stats.socialContributions)}</div>
+                  <div className="text-3xl font-bold text-green-600">{formatCurrency(stats.totalNetSalaries)}</div>
                   <div className="flex items-center mt-1 text-xs text-muted-foreground">
-                    <span>{Math.round((stats.socialContributions / stats.totalGrossSalary) * 100)}% de la masse salariale</span>
+                    <span>{((stats.totalNetSalaries / stats.totalGrossSalary) * 100).toFixed(1)}% du brut</span>
                   </div>
                 </CardContent>
               </Card>
               
               <Card>
                 <CardHeader className="pb-2">
-                  <CardTitle className="text-lg">Coût total</CardTitle>
-                  <CardDescription>Incluant charges et avantages</CardDescription>
+                  <CardTitle className="text-lg">Coût total employeur</CardTitle>
+                  <CardDescription>Charges incluses</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-3xl font-bold">{formatCurrency(stats.totalCost)}</div>
+                  <div className="text-3xl font-bold">{formatCurrency(stats.totalEmployerCost)}</div>
                   <div className="flex items-center mt-1 text-xs text-muted-foreground">
-                    <span>Ratio net/coût: {Math.round((stats.netSalaries / stats.totalCost) * 100)}%</span>
+                    <span>+{(((stats.totalEmployerCost - stats.totalGrossSalary) / stats.totalGrossSalary) * 100).toFixed(1)}% de charges</span>
                   </div>
                 </CardContent>
               </Card>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <Card className="md:col-span-2">
+            {/* Graphiques */}
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <Card>
                 <CardHeader>
                   <CardTitle>Répartition de la masse salariale</CardTitle>
-                  <CardDescription>
-                    Aperçu des composantes du coût salarial
-                  </CardDescription>
+                  <CardDescription>Aperçu des composantes</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                    <div className="h-72">
-                      <SalaryDistributionChart data={chartData.salaryDistributionData} />
-                    </div>
-                    <div className="space-y-4">
-                      <h3 className="text-lg font-medium">Analyse des coûts</h3>
-                      
-                      <div className="space-y-3">
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between">
-                            <span>Salaires bruts</span>
-                            <span className="font-medium">{formatCurrency(stats.totalGrossSalary)}</span>
-                          </div>
-                          <div className="w-full bg-gray-200 dark:bg-gray-700 h-2 rounded-full overflow-hidden">
-                            <div className="bg-blue-500 h-full" style={{ width: `${(stats.totalGrossSalary / stats.totalCost) * 100}%` }}></div>
-                          </div>
-                        </div>
-                        
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between">
-                            <span>Charges sociales patronales</span>
-                            <span className="font-medium">{formatCurrency(stats.socialContributions)}</span>
-                          </div>
-                          <div className="w-full bg-gray-200 dark:bg-gray-700 h-2 rounded-full overflow-hidden">
-                            <div className="bg-red-500 h-full" style={{ width: `${(stats.socialContributions / stats.totalCost) * 100}%` }}></div>
-                          </div>
-                        </div>
-                        
-                        <div className="space-y-1">
-                          <div className="flex items-center justify-between">
-                            <span>Avantages et primes</span>
-                            <span className="font-medium">{formatCurrency(stats.totalBenefits)}</span>
-                          </div>
-                          <div className="w-full bg-gray-200 dark:bg-gray-700 h-2 rounded-full overflow-hidden">
-                            <div className="bg-amber-500 h-full" style={{ width: `${(stats.totalBenefits / stats.totalCost) * 100}%` }}></div>
-                          </div>
-                        </div>
-                        
-                        <Separator className="my-2" />
-                        
-                        <div className="flex items-center justify-between font-medium">
-                          <span>Coût total employeur</span>
-                          <span>{formatCurrency(stats.totalCost)}</span>
-                        </div>
-                      </div>
-                      
-                      <Card className="bg-gray-50 dark:bg-gray-800 border-amber-200 dark:border-amber-900">
-                        <CardContent className="p-4">
-                          <div className="flex items-start">
-                            <HelpCircle className="h-5 w-5 mr-3 text-amber-500 mt-0.5" />
-                            <div>
-                              <h4 className="font-medium text-sm mb-1">Optimisations possibles</h4>
-                              <p className="text-xs text-muted-foreground">
-                                Réduisez votre coût employeur de jusqu'à 8% grâce à des optimisations fiscales et sociales légales.
-                              </p>
-                              <Button variant="link" className="text-xs p-0 h-auto mt-1">Découvrir comment →</Button>
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </div>
+                  <div className="h-[300px]">
+                    <SalaryDistributionChart data={chartData.salaryDistributionData} />
                   </div>
                 </CardContent>
               </Card>
-              
+
               <Card>
                 <CardHeader>
                   <CardTitle>Répartition par département</CardTitle>
-                  <CardDescription>
-                    Masse salariale par service
-                  </CardDescription>
+                  <CardDescription>Masse salariale par service</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="h-64">
+                  <div className="h-[300px]">
                     <DepartmentChart data={chartData.departmentData} />
-                  </div>
-                  
-                  <div className="mt-4 space-y-2">
-                    {chartData.departmentData.map((dept, index) => (
-                      <div key={dept.name} className="flex justify-between items-center">
-                        <div className="flex items-center">
-                          <div 
-                            className="h-3 w-3 rounded-full mr-2"
-                            style={{ backgroundColor: `hsl(${index * 120}, 70%, 50%)` }}
-                          ></div>
-                          <span>{dept.name}</span>
-                        </div>
-                        <span className="font-medium">{formatCurrency(dept.salary)}</span>
-                      </div>
-                    ))}
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardHeader>
-                  <CardTitle>Évolution mensuelle</CardTitle>
-                  <CardDescription>
-                    Tendance sur les 6 derniers mois
-                  </CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="h-64">
-                    <MonthlyEvolutionChart data={chartData.monthlyData} />
-                  </div>
-                  
-                  <div className="mt-4">
-                    <div className="flex justify-between text-xs text-muted-foreground mb-1">
-                      <span>Décembre</span>
-                      <span>Janvier</span>
-                      <span>Février</span>
-                      <span>Mars</span>
-                      <span>Avril</span>
-                      <span>Mai</span>
-                    </div>
-                    <div className="flex space-x-1">
-                      <div className="flex-1 h-1 bg-gray-200 dark:bg-gray-700 rounded-full"></div>
-                      <div className="flex-1 h-1 bg-gray-200 dark:bg-gray-700 rounded-full"></div>
-                      <div className="flex-1 h-1 bg-benin-green rounded-full"></div>
-                      <div className="flex-1 h-1 bg-benin-green rounded-full"></div>
-                      <div className="flex-1 h-1 bg-benin-green rounded-full"></div>
-                      <div className="flex-1 h-1 bg-benin-green rounded-full"></div>
-                    </div>
                   </div>
                 </CardContent>
               </Card>
@@ -648,31 +515,20 @@ const SimulationEnterprise = () => {
               </Button>
               <Button onClick={() => setShowAdvancedSimulationModal(true)}>
                 <Calculator className="mr-2 h-4 w-4" />
-                Lancer simulation avancée
+                Simulation avancée
               </Button>
             </div>
           </TabsContent>
           
           {/* Gestion des employés */}
           <TabsContent value="employees" className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Gestion des employés</h2>
-              {/* <Button 
-                size="sm"
-                onClick={() => setShowAddEmployeeModal(true)}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Ajouter un employé
-              </Button> */}
-            </div>
-            
             <Card>
               <CardHeader>
                 <div className="flex justify-between items-center">
                   <div>
                     <CardTitle>Liste des employés</CardTitle>
                     <CardDescription>
-                      Masse salariale totale: {formatCurrency(stats.totalGrossSalary)}
+                      Gestion et simulation des salaires • {filteredEmployees.length} employés affichés
                     </CardDescription>
                   </div>
                   
@@ -687,802 +543,470 @@ const SimulationEnterprise = () => {
                         onChange={(e) => setSearchTerm(e.target.value)}
                       />
                     </div>
-                    <Button 
-                      size="sm" 
-                      variant="outline"
-                      onClick={() => setShowFilters(!showFilters)}
+                    <Select 
+                      value={filters.department} 
+                      onValueChange={(value) => setFilters(prev => ({ ...prev, department: value }))}
                     >
-                      <Filter className="mr-2 h-4 w-4" />
-                      Filtres
+                      <SelectTrigger className="w-[180px]">
+                        <SelectValue placeholder="Département" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">Tous les départements</SelectItem>
+                        {departments.map((dept) => (
+                          <SelectItem key={dept.id} value={dept.name}>
+                            {dept.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </CardHeader>
+              
+              <CardContent>
+                {filteredEmployees.length === 0 ? (
+                  <div className="text-center py-12">
+                    <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-medium mb-2">Aucun employé trouvé</h3>
+                    <p className="text-muted-foreground max-w-sm mx-auto mb-4">
+                      {searchTerm || filters.department !== "all" 
+                        ? "Aucun employé ne correspond à vos critères" 
+                        : "Aucun employé dans la base de données"}
+                    </p>
+                    <Button onClick={() => navigate('/enterprise-dashboard')}>
+                      Retour au dashboard
                     </Button>
                   </div>
-                </div>
-              </CardHeader>
-              
-              {showFilters && (
-                <div className="px-6 pb-4 space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div>
-                      <Label>Département</Label>
-                      <Select 
-                        value={filters.department} 
-                        onValueChange={(value) => setFilters(prev => ({ ...prev, department: value }))}
-                      >
-                        <SelectTrigger>
-                          <SelectValue placeholder="Tous les départements" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="all">Tous les départements</SelectItem>
-                          <SelectItem value="Technique">Technique</SelectItem>
-                          <SelectItem value="Commercial">Commercial</SelectItem>
-                          <SelectItem value="Ressources Humaines">Ressources Humaines</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    
-                    <div>
-                      <Label>Salaire minimum</Label>
-                      <Input 
-                        type="number"
-                        value={filters.minSalary}
-                        onChange={(e) => setFilters(prev => ({ ...prev, minSalary: Number(e.target.value) }))}
-                      />
-                    </div>
-                    
-                    <div>
-                      <Label>Salaire maximum</Label>
-                      <Input 
-                        type="number"
-                        value={filters.maxSalary}
-                        onChange={(e) => setFilters(prev => ({ ...prev, maxSalary: Number(e.target.value) }))}
-                      />
-                    </div>
-                  </div>
-                </div>
-              )}
-              
-              <CardContent>
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Nom</TableHead>
-                      <TableHead>Département</TableHead>
-                      <TableHead>Poste</TableHead>
-                      <TableHead className="text-right">Salaire brut</TableHead>
-                      <TableHead className="text-right">Avantages</TableHead>
-                      <TableHead className="text-right">Coût total</TableHead>
-                      <TableHead className="text-right">Actions</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredEmployees.map(employee => {
-                      const totalBenefits = 
-                        (employee.benefits.transport || 0) +
-                        (employee.benefits.housing || 0) +
-                        (employee.benefits.performance || 0);
-                      
-                      const employerCost = employee.grossSalary + totalBenefits;
-                      
-                      return (
-                        <TableRow key={employee.id}>
-                          <TableCell className="font-medium">
-                            {employee.name}
-                          </TableCell>
-                          <TableCell>{employee.department}</TableCell>
-                          <TableCell>{employee.position}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(employee.grossSalary)}</TableCell>
-                          <TableCell className="text-right">{formatCurrency(totalBenefits)}</TableCell>
-                          <TableCell className="text-right font-medium">{formatCurrency(employerCost)}</TableCell>
-                          <TableCell className="text-right">
-                            <div className="flex justify-end space-x-2">
-                              <Button variant="ghost" size="sm">
-                                <Eye className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="sm">
-                                <Calculator className="h-4 w-4" />
-                              </Button>
-                              <Button variant="ghost" size="sm" className="text-red-500">
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </TableCell>
-                        </TableRow>
-                      );
-                    })}
-                  </TableBody>
-                </Table>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader>
-                <CardTitle>Employé sélectionné</CardTitle>
-                <CardDescription>
-                  Détail et simulation individuelle
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="text-center py-12">
-                  <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-                  <h3 className="text-lg font-medium mb-2">Sélectionnez un employé</h3>
-                  <p className="text-muted-foreground max-w-sm mx-auto mb-4">
-                    Cliquez sur un employé dans la liste pour voir ses détails et effectuer des simulations individuelles
-                  </p>
-                </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Employé</TableHead>
+                        <TableHead>Département</TableHead>
+                        <TableHead>Poste</TableHead>
+                        <TableHead className="text-right">Salaire brut</TableHead>
+                        <TableHead className="text-right">Salaire net estimé</TableHead>
+                        <TableHead className="text-right">Coût employeur</TableHead>
+                        <TableHead className="text-center">Actions</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {filteredEmployees.map(employee => {
+                        const salaryDetails = calculateSalaryDetails(employee);
+                        
+                        return (
+                          <TableRow key={employee.id}>
+                            <TableCell className="font-medium">
+                              <div className="flex items-center">
+                                <div className="w-8 h-8 rounded-full bg-primary/10 flex items-center justify-center mr-3">
+                                  <Users className="h-4 w-4 text-primary" />
+                                </div>
+                                <div>
+                                  <div className="font-medium">{employee.name}</div>
+                                  <div className="text-xs text-muted-foreground">ID: {employee.id}</div>
+                                </div>
+                              </div>
+                            </TableCell>
+                            <TableCell>
+                              <Badge variant="outline">{employee.department}</Badge>
+                            </TableCell>
+                            <TableCell>{employee.position}</TableCell>
+                            <TableCell className="text-right">
+                              {formatCurrency(employee.grossSalary)}
+                            </TableCell>
+                            <TableCell className="text-right font-medium text-green-600">
+                              {formatCurrency(salaryDetails.netSalary)}
+                            </TableCell>
+                            <TableCell className="text-right">
+                              {formatCurrency(salaryDetails.totalCost)}
+                            </TableCell>
+                            <TableCell>
+                              <div className="flex justify-center space-x-1">
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => handleViewEmployee(employee)}
+                                  title="Voir les détails"
+                                >
+                                  <Eye className="h-4 w-4" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => handleSimulateEmployee(employee)}
+                                  title="Simuler le salaire"
+                                >
+                                  <Calculator className="h-4 w-4" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => handleSendBulletin(employee)}
+                                  title="Envoyer bulletin"
+                                >
+                                  <Send className="h-4 w-4" />
+                                </Button>
+                                <Button 
+                                  variant="ghost" 
+                                  size="sm"
+                                  onClick={() => handleDeleteEmployee(employee.id)}
+                                  className="text-red-500 hover:text-red-700"
+                                  title="Supprimer"
+                                >
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        );
+                      })}
+                    </TableBody>
+                  </Table>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
           
           {/* Départements */}
           <TabsContent value="departments" className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Analyse par département</h2>
-              <Button>
-                <Plus className="mr-2 h-4 w-4" />
-                Nouveau département
-              </Button>
-            </div>
-            
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center justify-between">
-                    <span>Technique</span>
-                    <Badge variant="outline">2 employés</Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-4">
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Masse salariale</span>
-                      <span className="font-medium">{formatCurrency(1400000)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Coût moyen / employé</span>
-                      <span className="font-medium">{formatCurrency(700000)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">% de la masse salariale totale</span>
-                      <span className="font-medium">58%</span>
-                    </div>
-                  </div>
-                </CardContent>
-                <CardFooter>
-                  <Button variant="outline" className="w-full">
-                    <Calculator className="mr-2 h-4 w-4" />
-                    Simuler évolution
-                  </Button>
-                </CardFooter>
-              </Card>
-              
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center justify-between">
-                    <span>Commercial</span>
-                    <Badge variant="outline">1 employé</Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-4">
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Masse salariale</span>
-                      <span className="font-medium">{formatCurrency(650000)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Coût moyen / employé</span>
-                      <span className="font-medium">{formatCurrency(650000)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">% de la masse salariale totale</span>
-                      <span className="font-medium">26.5%</span>
-                    </div>
-                  </div>
-                </CardContent>
-                <CardFooter>
-                  <Button variant="outline" className="w-full">
-                    <Calculator className="mr-2 h-4 w-4" />
-                    Simuler évolution
-                  </Button>
-                </CardFooter>
-              </Card>
-              
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="flex items-center justify-between">
-                    <span>Ressources Humaines</span>
-                    <Badge variant="outline">1 employé</Badge>
-                  </CardTitle>
-                </CardHeader>
-                <CardContent className="pt-4">
-                  <div className="space-y-2">
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Masse salariale</span>
-                      <span className="font-medium">{formatCurrency(380000)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">Coût moyen / employé</span>
-                      <span className="font-medium">{formatCurrency(380000)}</span>
-                    </div>
-                    <div className="flex justify-between">
-                      <span className="text-sm text-muted-foreground">% de la masse salariale totale</span>
-                      <span className="font-medium">15.5%</span>
-                    </div>
-                  </div>
-                </CardContent>
-                <CardFooter>
-                  <Button variant="outline" className="w-full">
-                    <Calculator className="mr-2 h-4 w-4" />
-                    Simuler évolution
-                  </Button>
-                </CardFooter>
-              </Card>
-            </div>
-            
-            <Card>
-              <CardHeader>
-                <CardTitle>Analyse comparative des départements</CardTitle>
-                <CardDescription>
-                  Indicateurs clés par département
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <div className="h-72">
-                  <DepartmentChart data={chartData.departmentData} />
-                </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {departments.map(department => {
+                const deptEmployees = employees.filter(emp => emp.department === department.name);
+                const deptSalary = deptEmployees.reduce((sum, emp) => sum + emp.grossSalary, 0);
+                const avgDeptSalary = deptEmployees.length > 0 ? deptSalary / deptEmployees.length : 0;
                 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8">
-                  <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
-                    <h4 className="text-sm font-medium mb-2">Salaire moyen</h4>
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center">
-                        <span>Technique</span>
-                        <span className="font-medium">{formatCurrency(700000)}</span>
+                return (
+                  <Card key={department.id}>
+                    <CardHeader className="pb-2">
+                      <CardTitle className="flex items-center justify-between">
+                        <span>{department.name}</span>
+                        <Badge variant="outline">{deptEmployees.length} employés</Badge>
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent className="pt-4">
+                      <div className="space-y-2">
+                        <div className="flex justify-between">
+                          <span className="text-sm text-muted-foreground">Masse salariale</span>
+                          <span className="font-medium">{formatCurrency(deptSalary)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-muted-foreground">Salaire moyen</span>
+                          <span className="font-medium">{formatCurrency(avgDeptSalary)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-muted-foreground">Budget alloué</span>
+                          <span className="font-medium">{formatCurrency(department.budget)}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-sm text-muted-foreground">Utilisation budget</span>
+                          <span className="font-medium">
+                            {((deptSalary / department.budget) * 100).toFixed(1)}%
+                          </span>
+                        </div>
                       </div>
-                      <div className="flex justify-between items-center">
-                        <span>Commercial</span>
-                        <span className="font-medium">{formatCurrency(650000)}</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span>RH</span>
-                        <span className="font-medium">{formatCurrency(380000)}</span>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
-                    <h4 className="text-sm font-medium mb-2">Évolution annuelle</h4>
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center">
-                        <span>Technique</span>
-                        <Badge variant="success">+5.5%</Badge>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span>Commercial</span>
-                        <Badge variant="success">+4.2%</Badge>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span>RH</span>
-                        <Badge variant="success">+3.8%</Badge>
-                      </div>
-                    </div>
-                  </div>
-                  
-                  <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
-                    <h4 className="text-sm font-medium mb-2">Impact budgétaire</h4>
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-center">
-                        <span>Technique</span>
-                        <span className="font-medium text-amber-500">Élevé</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span>Commercial</span>
-                        <span className="font-medium text-amber-500">Moyen</span>
-                      </div>
-                      <div className="flex justify-between items-center">
-                        <span>RH</span>
-                        <span className="font-medium text-green-500">Faible</span>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                    </CardContent>
+                    <CardFooter>
+                      <Button variant="outline" className="w-full">
+                        <Calculator className="mr-2 h-4 w-4" />
+                        Simuler évolution
+                      </Button>
+                    </CardFooter>
+                  </Card>
+                );
+              })}
+            </div>
           </TabsContent>
           
           {/* Projections */}
           <TabsContent value="projections" className="space-y-6">
-            <div className="flex justify-between items-center">
-              <h2 className="text-2xl font-bold">Projections budgétaires</h2>
-              <div className="flex items-center space-x-2">
-                <Select defaultValue="2025">
-                  <SelectTrigger className="w-[100px]">
-                    <SelectValue placeholder="Année" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="2025">2025</SelectItem>
-                    <SelectItem value="2026">2026</SelectItem>
-                    <SelectItem value="2027">2027</SelectItem>
-                  </SelectContent>
-                </Select>
-                <Button>
-                  <Calculator className="mr-2 h-4 w-4" />
-                  Nouvelle simulation
-                </Button>
-              </div>
-            </div>
-            
             <Card>
               <CardHeader>
-                <CardTitle>Paramètres de simulation</CardTitle>
+                <CardTitle>Simulation avancée</CardTitle>
                 <CardDescription>
-                  Définissez les hypothèses pour votre projection
+                  Projections de la masse salariale sur {advancedSimulationParams.period} mois
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                  <div className="space-y-6">
-                    <div>
-                      <h3 className="text-sm font-medium mb-4">Hypothèses générales</h3>
-                      
-                      <div className="space-y-4">
-                        <div>
-                          <Label>Augmentation générale</Label>
-                          <div className="flex items-center mt-1">
-                            <Input 
-                              type="number" 
-                              placeholder="3" 
-                              className="w-20 mr-2" 
-                            />
-                            <span className="text-sm text-muted-foreground">% par an</span>
-                          </div>
-                        </div>
-                        
-                        <div>
-                          <Label>Inflation prévue</Label>
-                          <div className="flex items-center mt-1">
-                            <Input 
-                              type="number" 
-                              placeholder="2" 
-                              className="w-20 mr-2" 
-                            />
-                            <span className="text-sm text-muted-foreground">% par an</span>
-                          </div>
-                        </div>
-                        
-                        <div>
-                          <Label>Horizon de projection</Label>
-                          <Select defaultValue="12">
-                            <SelectTrigger className="mt-1">
-                              <SelectValue placeholder="Sélectionner" />
-                            </SelectTrigger>
-                            <SelectContent>
-                              <SelectItem value="3">3 mois</SelectItem>
-                              <SelectItem value="6">6 mois</SelectItem>
-                              <SelectItem value="12">12 mois</SelectItem>
-                              <SelectItem value="24">24 mois</SelectItem>
-                              <SelectItem value="36">36 mois</SelectItem>
-                            </SelectContent>
-                          </Select>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <Separator />
-                    
-                    <div>
-                      <h3 className="text-sm font-medium mb-4">Évolution des effectifs</h3>
-                      
-                      <div className="space-y-4">
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center">
-                            <Checkbox id="enable-recruitment" />
-                            <label htmlFor="enable-recruitment" className="ml-2 text-sm">
-                              Inclure recrutements
-                            </label>
-                          </div>
-                          <Input
-                            type="number"
-                            placeholder="Nombre"
-                            className="w-20 h-8 text-sm"
-                          />
-                        </div>
-                        
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center">
-                            <Checkbox id="enable-departures" />
-                            <label htmlFor="enable-departures" className="ml-2 text-sm">
-                              Inclure départs
-                            </label>
-                          </div>
-                          <Input
-                            type="number"
-                            placeholder="Nombre"
-                            className="w-20 h-8 text-sm"
-                          />
-                        </div>
-                        
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center">
-                            <Checkbox id="enable-promotions" />
-                            <label htmlFor="enable-promotions" className="ml-2 text-sm">
-                              Inclure promotions
-                            </label>
-                          </div>
-                          <Input
-                            type="number"
-                            placeholder="Nombre"
-                            className="w-20 h-8 text-sm"
-                          />
-                        </div>
-                      </div>
-                    </div>
+                {monthlyData.length > 0 ? (
+                  <div className="h-[400px]">
+                    <BudgetProjectionChart data={monthlyData} />
                   </div>
-                  
-                  <div>
-                    <h3 className="text-sm font-medium mb-4">Évolution par département</h3>
-                    
-                    <div className="space-y-4">
-                      <Card className="bg-gray-50 dark:bg-gray-800">
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <h4 className="font-medium">Technique</h4>
-                            <Badge variant="outline">2 employés</Badge>
-                          </div>
-                          
-                          <div className="grid grid-cols-2 gap-4 mb-2">
-                            <div>
-                              <Label className="text-xs">Croissance</Label>
-                              <Select defaultValue="5">
-                                <SelectTrigger className="h-8 text-xs">
-                                  <SelectValue placeholder="%" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="0">0%</SelectItem>
-                                  <SelectItem value="3">3%</SelectItem>
-                                  <SelectItem value="5">5%</SelectItem>
-                                  <SelectItem value="7">7%</SelectItem>
-                                  <SelectItem value="10">10%</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div>
-                              <Label className="text-xs">Nouveaux postes</Label>
-                              <Input type="number" placeholder="0" className="h-8 text-xs" />
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                      
-                      <Card className="bg-gray-50 dark:bg-gray-800">
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <h4 className="font-medium">Commercial</h4>
-                            <Badge variant="outline">1 employé</Badge>
-                          </div>
-                          
-                          <div className="grid grid-cols-2 gap-4 mb-2">
-                            <div>
-                              <Label className="text-xs">Croissance</Label>
-                              <Select defaultValue="7">
-                                <SelectTrigger className="h-8 text-xs">
-                                  <SelectValue placeholder="%" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="0">0%</SelectItem>
-                                  <SelectItem value="3">3%</SelectItem>
-                                  <SelectItem value="5">5%</SelectItem>
-                                  <SelectItem value="7">7%</SelectItem>
-                                  <SelectItem value="10">10%</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div>
-                              <Label className="text-xs">Nouveaux postes</Label>
-                              <Input type="number" placeholder="1" className="h-8 text-xs" />
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                      
-                      <Card className="bg-gray-50 dark:bg-gray-800">
-                        <CardContent className="p-4">
-                          <div className="flex items-center justify-between mb-2">
-                            <h4 className="font-medium">Ressources Humaines</h4>
-                            <Badge variant="outline">1 employé</Badge>
-                          </div>
-                          
-                          <div className="grid grid-cols-2 gap-4 mb-2">
-                            <div>
-                              <Label className="text-xs">Croissance</Label>
-                              <Select defaultValue="3">
-                                <SelectTrigger className="h-8 text-xs">
-                                  <SelectValue placeholder="%" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  <SelectItem value="0">0%</SelectItem>
-                                  <SelectItem value="3">3%</SelectItem>
-                                  <SelectItem value="5">5%</SelectItem>
-                                  <SelectItem value="7">7%</SelectItem>
-                                  <SelectItem value="10">10%</SelectItem>
-                                </SelectContent>
-                              </Select>
-                            </div>
-                            <div>
-                              <Label className="text-xs">Nouveaux postes</Label>
-                              <Input type="number" placeholder="0" className="h-8 text-xs" />
-                            </div>
-                          </div>
-                        </CardContent>
-                      </Card>
-                    </div>
+                ) : (
+                  <div className="text-center py-12">
+                    <BarChart2 className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
+                    <h3 className="text-lg font-medium mb-2">Aucune projection disponible</h3>
+                    <p className="text-muted-foreground mb-4">
+                      Lancez une simulation avancée pour voir les projections
+                    </p>
+                    <Button onClick={() => setShowAdvancedSimulationModal(true)}>
+                      <Calculator className="mr-2 h-4 w-4" />
+                      Lancer une simulation
+                    </Button>
                   </div>
-                </div>
-                
-                <Button className="w-full mt-6">
-                  <Calculator className="mr-2 h-4 w-4" />
-                  Calculer la projection
-                </Button>
-              </CardContent>
-            </Card>
-            
-            <Card>
-              <CardHeader>
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
-                  <div>
-                    <CardTitle>Résultats de la projection</CardTitle>
-                    <CardDescription>
-                      Simulation sur 12 mois (juin 2025 - mai 2026)
-                    </CardDescription>
-                  </div>
-                  <Badge variant="warning">Simulation</Badge>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-8">
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg text-center">
-                    <h4 className="text-sm text-muted-foreground mb-1">Masse salariale actuelle</h4>
-                    <div className="text-2xl font-bold">{formatCurrency(stats.totalGrossSalary)}</div>
-                    <div className="mt-2 text-xs text-muted-foreground">Mai 2025</div>
-                  </div>
-                  
-                  <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg text-center">
-                    <h4 className="text-sm text-muted-foreground mb-1">Masse salariale projetée</h4>
-                    <div className="text-2xl font-bold text-benin-green">{formatCurrency(stats.totalGrossSalary * 1.15)}</div>
-                    <div className="mt-2 text-xs text-muted-foreground">Mai 2026</div>
-                  </div>
-                  
-                  <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg text-center">
-                    <h4 className="text-sm text-muted-foreground mb-1">Augmentation</h4>
-                    <div className="text-2xl font-bold text-amber-500">+15%</div>
-                    <div className="mt-2 text-xs text-muted-foreground">Sur 12 mois</div>
-                  </div>
-                </div>
-                
-                <div className="h-72">
-                  <BudgetProjectionChart data={chartData.monthlyData} />
-                </div>
-                
-                <div className="space-y-4">
-                  <h4 className="font-medium">Facteurs d'évolution</h4>
-                  
-                  <div className="space-y-3">
-                    <div className="space-y-1">
-                      <div className="flex justify-between">
-                        <span>Augmentation générale (3%)</span>
-                        <span>{formatCurrency(stats.totalGrossSalary * 0.03)}</span>
-                      </div>
-                      <div className="w-full bg-gray-200 dark:bg-gray-700 h-2 rounded-full overflow-hidden">
-                        <div className="bg-blue-500 h-full" style={{ width: "20%" }}></div>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-1">
-                      <div className="flex justify-between">
-                        <span>Recrutements (3 postes)</span>
-                        <span>{formatCurrency(stats.totalGrossSalary * 0.08)}</span>
-                      </div>
-                      <div className="w-full bg-gray-200 dark:bg-gray-700 h-2 rounded-full overflow-hidden">
-                        <div className="bg-green-500 h-full" style={{ width: "55%" }}></div>
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-1">
-                      <div className="flex justify-between">
-                        <span>Promotions</span>
-                        <span>{formatCurrency(stats.totalGrossSalary * 0.04)}</span>
-                      </div>
-                      <div className="w-full bg-gray-200 dark:bg-gray-700 h-2 rounded-full overflow-hidden">
-                        <div className="bg-purple-500 h-full" style={{ width: "25%" }}></div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-                
-                <Card className="bg-amber-50 dark:bg-amber-900/20 border-amber-200 dark:border-amber-900">
-                  <CardContent className="p-4">
-                    <div className="flex items-start">
-                      <HelpCircle className="h-5 w-5 mr-3 text-amber-500 mt-0.5" />
-                      <div>
-                        <h4 className="font-medium text-sm mb-1">Points d'attention</h4>
-                        <ul className="list-disc pl-4 text-xs text-muted-foreground space-y-1">
-                          <li>L'augmentation de la masse salariale est supérieure à l'inflation projetée (15% vs 2%).</li>
-                          <li>Le coût des nouveaux recrutements représente 55% de la hausse totale.</li>
-                          <li>Considérez d'échelonner les recrutements sur deux exercices fiscaux.</li>
-                        </ul>
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-                
-                <div className="flex justify-end space-x-4">
-                  <Button variant="outline">
-                    <Download className="mr-2 h-4 w-4" />
-                    Télécharger rapport
-                  </Button>
-                  <Button>
-                    <Calculator className="mr-2 h-4 w-4" />
-                    Affiner la simulation
-                  </Button>
-                </div>
+                )}
               </CardContent>
             </Card>
           </TabsContent>
         </Tabs>
-      </div>
 
-      {/* Modal d'ajout d'employé */}
-      <Dialog open={showAddEmployeeModal} onOpenChange={setShowAddEmployeeModal}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Ajouter un nouvel employé</DialogTitle>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="name" className="text-right">
-                Nom
-              </Label>
-              <Input
-                id="name"
-                value={newEmployee.name}
-                onChange={(e) => setNewEmployee(prev => ({ ...prev, name: e.target.value }))}
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="department" className="text-right">
-                Département
-              </Label>
-              <Select
-                value={newEmployee.department}
-                onValueChange={(value) => setNewEmployee(prev => ({ ...prev, department: value }))}
-              >
-                <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="Sélectionner un département" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="Technique">Technique</SelectItem>
-                  <SelectItem value="Commercial">Commercial</SelectItem>
-                  <SelectItem value="Administratif">Administratif</SelectItem>
-                  <SelectItem value="Direction">Direction</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="position" className="text-right">
-                Poste
-              </Label>
-              <Input
-                id="position"
-                value={newEmployee.position}
-                onChange={(e) => setNewEmployee(prev => ({ ...prev, position: e.target.value }))}
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="salary" className="text-right">
-                Salaire
-              </Label>
-              <Input
-                id="salary"
-                type="number"
-                value={newEmployee.salary}
-                onChange={(e) => setNewEmployee(prev => ({ ...prev, salary: Number(e.target.value) }))}
-                className="col-span-3"
-              />
-            </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAddEmployeeModal(false)}>
-              Annuler
-            </Button>
-            <Button onClick={handleAddEmployee}>
-              Ajouter
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+        {/* Modal détails employé */}
+        <Dialog open={showEmployeeDetails} onOpenChange={setShowEmployeeDetails}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Détails de l'employé</DialogTitle>
+              <DialogDescription>
+                Informations complètes et calculs salariaux
+              </DialogDescription>
+            </DialogHeader>
+            {selectedEmployee && (
+              <div className="space-y-6">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Nom complet</Label>
+                    <p className="font-medium">{selectedEmployee.name}</p>
+                  </div>
+                  <div>
+                    <Label>Département</Label>
+                    <p className="font-medium">{selectedEmployee.department}</p>
+                  </div>
+                  <div>
+                    <Label>Poste</Label>
+                    <p className="font-medium">{selectedEmployee.position}</p>
+                  </div>
+                  <div>
+                    <Label>Salaire brut</Label>
+                    <p className="font-medium">{formatCurrency(selectedEmployee.grossSalary)}</p>
+                  </div>
+                </div>
+                
+                {/* Calculs détaillés */}
+                <div className="border-t pt-4">
+                  <h4 className="font-medium mb-3">Simulation salariale ({country === 'benin' ? 'Bénin' : 'Togo'})</h4>
+                  {(() => {
+                    const details = calculateSalaryDetails(selectedEmployee);
+                    return (
+                      <div className="grid grid-cols-2 gap-4">
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <span>Salaire brut total</span>
+                            <span className="font-medium">{formatCurrency(details.grossSalary)}</span>
+                          </div>
+                          <div className="flex justify-between text-red-600">
+                            <span>Cotisations sociales ({country === 'benin' ? '3.6%' : '9%'})</span>
+                            <span>-{formatCurrency(details.socialContributions)}</span>
+                          </div>
+                          <div className="flex justify-between text-red-600">
+                            <span>{country === 'benin' ? 'ITS' : 'IRPP'}</span>
+                            <span>-{formatCurrency(details.incomeTax)}</span>
+                          </div>
+                          <div className="border-t pt-2">
+                            <div className="flex justify-between font-medium text-green-600">
+                              <span>Salaire net</span>
+                              <span>{formatCurrency(details.netSalary)}</span>
+                            </div>
+                          </div>
+                        </div>
+                        
+                        <div className="space-y-2">
+                          <div className="flex justify-between">
+                            <span>Charges patronales</span>
+                            <span className="font-medium">+{formatCurrency(details.employerCharges)}</span>
+                          </div>
+                          <div className="border-t pt-2">
+                            <div className="flex justify-between font-medium">
+                              <span>Coût total employeur</span>
+                              <span>{formatCurrency(details.totalCost)}</span>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })()}
+                </div>
+                
+                <div className="flex gap-2 pt-4">
+                  <Button 
+                    variant="outline" 
+                    className="flex-1"
+                    onClick={() => handleSimulateEmployee(selectedEmployee)}
+                  >
+                    <Calculator className="mr-2 h-4 w-4" />
+                    Simuler modifications
+                  </Button>
+                  <Button 
+                    variant="outline" 
+                    className="flex-1"
+                    onClick={() => handleSendBulletin(selectedEmployee)}
+                  >
+                    <Send className="mr-2 h-4 w-4" />
+                    Envoyer bulletin
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
 
-      {/* Modal de simulation avancée */}
-      <Dialog open={showAdvancedSimulationModal} onOpenChange={setShowAdvancedSimulationModal}>
-        <DialogContent className="sm:max-w-[425px]">
-          <DialogHeader>
-            <DialogTitle>Simulation avancée</DialogTitle>
-            <DialogDescription>
-              Configurez les paramètres de la simulation pour projeter l'évolution des salaires
-            </DialogDescription>
-          </DialogHeader>
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="period" className="text-right">
-                Période (mois)
-              </Label>
-              <Select
-                value={advancedSimulationParams.period}
-                onValueChange={(value) => setAdvancedSimulationParams(prev => ({ ...prev, period: value }))}
-              >
-                <SelectTrigger className="col-span-3">
-                  <SelectValue placeholder="Sélectionner la période" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="6">6 mois</SelectItem>
-                  <SelectItem value="12">12 mois</SelectItem>
-                  <SelectItem value="24">24 mois</SelectItem>
-                  <SelectItem value="36">36 mois</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="growthRate" className="text-right">
-                Taux de croissance (%)
-              </Label>
-              <Input
-                id="growthRate"
-                type="number"
-                value={advancedSimulationParams.growthRate}
-                onChange={(e) => setAdvancedSimulationParams(prev => ({ ...prev, growthRate: e.target.value }))}
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="inflationRate" className="text-right">
-                Taux d'inflation (%)
-              </Label>
-              <Input
-                id="inflationRate"
-                type="number"
-                value={advancedSimulationParams.inflationRate}
-                onChange={(e) => setAdvancedSimulationParams(prev => ({ ...prev, inflationRate: e.target.value }))}
-                className="col-span-3"
-              />
-            </div>
-            <div className="grid grid-cols-4 items-center gap-4">
-              <Label htmlFor="includeBenefits" className="text-right">
-                Inclure avantages
-              </Label>
-              <div className="col-span-3">
-                <input
-                  type="checkbox"
-                  id="includeBenefits"
-                  checked={advancedSimulationParams.includeBenefits}
-                  onChange={(e) => setAdvancedSimulationParams(prev => ({ ...prev, includeBenefits: e.target.checked }))}
-                  className="mr-2"
-                />
-                <Label htmlFor="includeBenefits" className="text-sm">
-                  Inclure les avantages sociaux dans la simulation
-                </Label>
+        {/* Modal simulation employé */}
+        <Dialog open={showEmployeeSimulation} onOpenChange={setShowEmployeeSimulation}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Simulation salariale</DialogTitle>
+              <DialogDescription>
+                Simulez les modifications de salaire pour {selectedEmployee?.name}
+              </DialogDescription>
+            </DialogHeader>
+            {selectedEmployee && (
+              <div className="space-y-4">
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <Label>Nouveau salaire brut</Label>
+                    <Input 
+                      type="number" 
+                      defaultValue={selectedEmployee.grossSalary}
+                      placeholder="Saisir le nouveau salaire"
+                    />
+                  </div>
+                  <div>
+                    <Label>Prime de transport</Label>
+                    <Input 
+                      type="number" 
+                      defaultValue={selectedEmployee.benefits.transport || 0}
+                      placeholder="0"
+                    />
+                  </div>
+                </div>
+                
+                <div className="bg-gray-50 dark:bg-gray-800 p-4 rounded-lg">
+                  <h4 className="font-medium mb-2">Résultat de la simulation</h4>
+                  <p className="text-sm text-muted-foreground">
+                    Les calculs seront mis à jour en temps réel lors de la modification des valeurs
+                  </p>
+                </div>
+                
+                <div className="flex gap-2">
+                  <Button className="flex-1">
+                    <Calculator className="mr-2 h-4 w-4" />
+                    Calculer
+                  </Button>
+                  <Button variant="outline" className="flex-1">
+                    Appliquer les modifications
+                  </Button>
+                </div>
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal envoi bulletin */}
+        <Dialog open={showSendBulletin} onOpenChange={setShowSendBulletin}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Envoyer le bulletin de paie</DialogTitle>
+              <DialogDescription>
+                Confirmer l'envoi du bulletin de paie à {selectedEmployee?.name}
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4">
+              <div className="flex items-center space-x-2">
+                <Checkbox id="email" defaultChecked />
+                <Label htmlFor="email">Envoyer par email</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox id="dashboard" defaultChecked />
+                <Label htmlFor="dashboard">Ajouter au dashboard employé</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox id="notification" />
+                <Label htmlFor="notification">Envoyer une notification</Label>
               </div>
             </div>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowAdvancedSimulationModal(false)}>
-              Annuler
-            </Button>
-            <Button onClick={handleAdvancedSimulation}>
-              Lancer la simulation
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowSendBulletin(false)}>
+                Annuler
+              </Button>
+              <Button onClick={confirmSendBulletin} disabled={isLoading}>
+                {isLoading ? (
+                  <>
+                    <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    Envoi en cours...
+                  </>
+                ) : (
+                  <>
+                    <Send className="mr-2 h-4 w-4" />
+                    Envoyer
+                  </>
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        {/* Modal simulation avancée */}
+        <Dialog open={showAdvancedSimulationModal} onOpenChange={setShowAdvancedSimulationModal}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Simulation avancée</DialogTitle>
+              <DialogDescription>
+                Configurez les paramètres pour projeter l'évolution de la masse salariale
+              </DialogDescription>
+            </DialogHeader>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="period" className="text-right">
+                  Période (mois)
+                </Label>
+                <Select
+                  value={advancedSimulationParams.period}
+                  onValueChange={(value) => setAdvancedSimulationParams(prev => ({ ...prev, period: value }))}
+                >
+                  <SelectTrigger className="col-span-3">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="6">6 mois</SelectItem>
+                    <SelectItem value="12">12 mois</SelectItem>
+                    <SelectItem value="24">24 mois</SelectItem>
+                    <SelectItem value="36">36 mois</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="growthRate" className="text-right">
+                  Croissance (%)
+                </Label>
+                <Input
+                  id="growthRate"
+                  type="number"
+                  value={advancedSimulationParams.growthRate}
+                  onChange={(e) => setAdvancedSimulationParams(prev => ({ ...prev, growthRate: e.target.value }))}
+                  className="col-span-3"
+                />
+              </div>
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="inflationRate" className="text-right">
+                  Inflation (%)
+                </Label>
+                <Input
+                  id="inflationRate"
+                  type="number"
+                  value={advancedSimulationParams.inflationRate}
+                  onChange={(e) => setAdvancedSimulationParams(prev => ({ ...prev, inflationRate: e.target.value }))}
+                  className="col-span-3"
+                />
+              </div>
+            </div>
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setShowAdvancedSimulationModal(false)}>
+                Annuler
+              </Button>
+              <Button onClick={handleAdvancedSimulation}>
+                Lancer la simulation
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </div>
     </Layout>
   );
 };
