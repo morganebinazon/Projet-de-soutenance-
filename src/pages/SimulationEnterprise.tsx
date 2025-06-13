@@ -389,18 +389,6 @@ const SimulationEnterprise: React.FC = () => {
             </p>
           </div>
           
-          <div className="flex items-center space-x-2 mt-4 md:mt-0">
-            <span className="text-sm font-medium">Pays:</span>
-            <Select defaultValue={country}>
-              <SelectTrigger className="w-[120px]">
-                <SelectValue placeholder="Pays" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="benin">Bénin</SelectItem>
-                <SelectItem value="togo">Togo</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
         </div>
         
         <Tabs defaultValue="overview" value={activeTab} onValueChange={setActiveTab} className="space-y-6">
