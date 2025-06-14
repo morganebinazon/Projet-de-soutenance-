@@ -48,69 +48,12 @@ import {
   Share2
 } from "lucide-react";
 import { useCountry } from "@/hooks/use-country";
-import { useAuth } from "@/hooks/use-auth";
+import { useAuthStore } from "@/stores/authSore";
 import { toast } from "@/components/ui/use-toast";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
-
-// Données simulées pour l'historique des simulations
-const mockSimulationHistory = [
-  {
-    id: 1,
-    date: "2025-06-10",
-    type: "Brut → Net",
-    salaireBrut: 350000,
-    salaireNet: 265000,
-    country: "benin",
-    familyStatus: "married",
-    children: 2,
-    saved: true
-  },
-  {
-    id: 2,
-    date: "2025-06-08",
-    type: "Net → Brut",
-    salaireBrut: 420000,
-    salaireNet: 300000,
-    country: "togo",
-    familyStatus: "single",
-    children: 0,
-    saved: true
-  },
-  {
-    id: 3,
-    date: "2025-06-05",
-    type: "Brut → Net",
-    salaireBrut: 280000,
-    salaireNet: 215000,
-    country: "benin",
-    familyStatus: "single",
-    children: 1,
-    saved: false
-  },
-  {
-    id: 4,
-    date: "2025-06-01",
-    type: "Brut → Net",
-    salaireBrut: 500000,
-    salaireNet: 365000,
-    country: "togo",
-    familyStatus: "married",
-    children: 3,
-    saved: true
-  },
-  {
-    id: 5,
-    date: "2025-05-28",
-    type: "Net → Brut",
-    salaireBrut: 320000,
-    salaireNet: 250000,
-    country: "benin",
-    familyStatus: "divorced",
-    children: 1,
-    saved: true
-  }
-];
+import { useSimulationStore, FamilyStatus } from "@/stores/simulation.store";
+import { Checkbox } from "@/components/ui/checkbox";
 
 // Données pour les graphiques
 const salaryTrendsData = [
@@ -130,13 +73,27 @@ const countryDistribution = [
 const Dashboard = () => {
   const navigate = useNavigate();
   const { country } = useCountry();
-  const { user } = useAuth();
-  const [simulationHistory, setSimulationHistory] = useState(mockSimulationHistory);
+  const { user: currentUser } = useAuthStore();
+  const { simulations: simulationHistory, removeSimulation } = useSimulationStore();
   const [selectedSimulation, setSelectedSimulation] = useState<any>(null);
   const [showSimulationDetails, setShowSimulationDetails] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
   const [filterCountry, setFilterCountry] = useState("all");
   const [filterType, setFilterType] = useState("all");
+  const [defaultCountry, setDefaultCountry] = useState(country);
+  const [defaultFamilyStatus, setDefaultFamilyStatus] = useState<FamilyStatus>("single");
+  const [autoSave, setAutoSave] = useState(true);
+
+  // Charger les préférences au démarrage
+  useEffect(() => {
+    const savedPreferences = localStorage.getItem('userPreferences');
+    if (savedPreferences) {
+      const preferences = JSON.parse(savedPreferences);
+      setDefaultCountry(preferences.defaultCountry || country);
+      setDefaultFamilyStatus(preferences.defaultFamilyStatus || "single");
+      setAutoSave(preferences.autoSave ?? true);
+    }
+  }, [country]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('fr-FR', {
@@ -283,12 +240,50 @@ const Dashboard = () => {
   };
 
   const handleDeleteSimulation = (id: number) => {
-    setSimulationHistory(prev => prev.filter(sim => sim.id !== id));
+    removeSimulation(id);
     toast({
       title: "Simulation supprimée",
       description: "La simulation a été supprimée de votre historique",
       variant: "default"
     });
+  };
+
+  const handleShareSimulation = async (simulation: any) => {
+    const shareData = {
+      title: 'Simulation de Salaire PayeAfrique',
+      text: `Voici ma simulation de salaire sur PayeAfrique :
+Type: ${simulation.type}
+Pays: ${simulation.country === 'benin' ? 'Bénin' : 'Togo'}
+Salaire brut: ${formatCurrency(simulation.salaireBrut)}
+Salaire net: ${formatCurrency(simulation.salaireNet)}`,
+      url: window.location.href
+    };
+
+    try {
+      if (navigator.share) {
+        await navigator.share(shareData);
+        toast({
+          title: "Partage réussi",
+          description: "Votre simulation a été partagée",
+          variant: "default"
+        });
+      } else {
+        // Fallback pour les navigateurs qui ne supportent pas l'API Web Share
+        await navigator.clipboard.writeText(shareData.text);
+        toast({
+          title: "Copié !",
+          description: "Le texte a été copié dans le presse-papiers",
+          variant: "default"
+        });
+      }
+    } catch (error) {
+      console.error('Erreur lors du partage:', error);
+      toast({
+        title: "Erreur",
+        description: "Une erreur s'est produite lors du partage",
+        variant: "destructive"
+      });
+    }
   };
 
   return (
@@ -305,7 +300,7 @@ const Dashboard = () => {
               <div className="absolute bottom-0 right-0 h-5 w-5 bg-green-500 rounded-full border-2 border-white dark:border-gray-800"></div>
             </div>
             
-            <h2 className="mt-4 text-xl font-bold">{user?.name || "Utilisateur"}</h2>
+            <h2 className="mt-4 text-xl font-bold">{currentUser?.name || "Utilisateur"}</h2>
             <p className="text-sm text-muted-foreground">Particulier</p>
             <Badge className="mt-2 bg-benin-green" variant="secondary">
               {country === 'benin' ? 'Bénin' : 'Togo'}
@@ -605,24 +600,55 @@ const Dashboard = () => {
                   <div className="space-y-4">
                     <div className="flex justify-between items-center p-3 bg-green-50 dark:bg-green-950/20 rounded-lg">
                       <span className="font-medium">Simulations Bénin</span>
-                      <span className="font-bold">
-                        {simulationHistory.filter(s => s.country === 'benin').length}
-                      </span>
+                      <div className="text-right">
+                        <span className="font-bold block">
+                          {simulationHistory.filter(s => s.country === 'benin').length}
+                        </span>
+                        <span className="text-sm text-muted-foreground">
+                          {formatCurrency(
+                            simulationHistory
+                              .filter(s => s.country === 'benin')
+                              .reduce((sum, s) => sum + s.salaireNet, 0) / 
+                            (simulationHistory.filter(s => s.country === 'benin').length || 1)
+                          )} net moyen
+                        </span>
+                      </div>
                     </div>
                     <div className="flex justify-between items-center p-3 bg-blue-50 dark:bg-blue-950/20 rounded-lg">
                       <span className="font-medium">Simulations Togo</span>
-                      <span className="font-bold">
-                        {simulationHistory.filter(s => s.country === 'togo').length}
-                      </span>
+                      <div className="text-right">
+                        <span className="font-bold block">
+                          {simulationHistory.filter(s => s.country === 'togo').length}
+                        </span>
+                        <span className="text-sm text-muted-foreground">
+                          {formatCurrency(
+                            simulationHistory
+                              .filter(s => s.country === 'togo')
+                              .reduce((sum, s) => sum + s.salaireNet, 0) / 
+                            (simulationHistory.filter(s => s.country === 'togo').length || 1)
+                          )} net moyen
+                        </span>
+                      </div>
                     </div>
                     <div className="flex justify-between items-center p-3 bg-gray-50 dark:bg-gray-800 rounded-lg">
                       <span className="font-medium">Écart moyen net</span>
-                      <span className="font-bold">
-                        {formatCurrency(Math.abs(
-                          simulationHistory.filter(s => s.country === 'benin').reduce((sum, s) => sum + s.salaireNet, 0) / simulationHistory.filter(s => s.country === 'benin').length -
-                          simulationHistory.filter(s => s.country === 'togo').reduce((sum, s) => sum + s.salaireNet, 0) / simulationHistory.filter(s => s.country === 'togo').length
-                        ))}
-                      </span>
+                      <div className="text-right">
+                        <span className="font-bold block">
+                          {formatCurrency(Math.abs(
+                            (simulationHistory
+                              .filter(s => s.country === 'benin')
+                              .reduce((sum, s) => sum + s.salaireNet, 0) / 
+                            (simulationHistory.filter(s => s.country === 'benin').length || 1)) -
+                            (simulationHistory
+                              .filter(s => s.country === 'togo')
+                              .reduce((sum, s) => sum + s.salaireNet, 0) / 
+                            (simulationHistory.filter(s => s.country === 'togo').length || 1))
+                          ))}
+                        </span>
+                        <span className="text-sm text-muted-foreground">
+                          Différence entre les deux pays
+                        </span>
+                      </div>
                     </div>
                   </div>
                 </CardContent>
@@ -640,7 +666,9 @@ const Dashboard = () => {
                       <div>
                         <p className="font-medium text-sm">Optimisation fiscale</p>
                         <p className="text-xs text-muted-foreground">
-                          Considérez les avantages familiaux pour réduire vos impôts
+                          {simulationHistory.some(s => s.children > 0) 
+                            ? "Vous bénéficiez déjà d'avantages familiaux"
+                            : "Considérez les avantages familiaux pour réduire vos impôts"}
                         </p>
                       </div>
                     </div>
@@ -649,7 +677,9 @@ const Dashboard = () => {
                       <div>
                         <p className="font-medium text-sm">Négociation salariale</p>
                         <p className="text-xs text-muted-foreground">
-                          Votre profil suggère un potentiel d'augmentation
+                          {avgSalaireNet > 300000 
+                            ? "Votre profil suggère un potentiel d'augmentation"
+                            : "Considérez une négociation salariale basée sur vos simulations"}
                         </p>
                       </div>
                     </div>
@@ -658,7 +688,9 @@ const Dashboard = () => {
                       <div>
                         <p className="font-medium text-sm">Comparaison régionale</p>
                         <p className="text-xs text-muted-foreground">
-                          Explorez les opportunités dans les deux pays
+                          {simulationHistory.some(s => s.country === 'benin') && simulationHistory.some(s => s.country === 'togo')
+                            ? "Vous avez exploré les deux pays, comparez les résultats"
+                            : "Explorez les opportunités dans les deux pays"}
                         </p>
                       </div>
                     </div>
@@ -679,7 +711,10 @@ const Dashboard = () => {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label>Pays par défaut</Label>
-                    <Select defaultValue={country}>
+                    <Select 
+                      value={defaultCountry} 
+                      onValueChange={(value: 'benin' | 'togo') => setDefaultCountry(value)}
+                    >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -691,7 +726,10 @@ const Dashboard = () => {
                   </div>
                   <div>
                     <Label>Situation familiale</Label>
-                    <Select defaultValue="single">
+                    <Select 
+                      value={defaultFamilyStatus} 
+                      onValueChange={(value: FamilyStatus) => setDefaultFamilyStatus(value)}
+                    >
                       <SelectTrigger>
                         <SelectValue />
                       </SelectTrigger>
@@ -707,11 +745,33 @@ const Dashboard = () => {
                 <div>
                   <Label>Sauvegarde automatique</Label>
                   <div className="flex items-center space-x-2 mt-2">
-                    <input type="checkbox" defaultChecked />
-                    <span className="text-sm">Sauvegarder automatiquement mes simulations</span>
+                    <Checkbox 
+                      id="auto-save" 
+                      checked={autoSave}
+                      onCheckedChange={(checked) => setAutoSave(checked === true)}
+                    />
+                    <Label htmlFor="auto-save" className="text-sm">
+                      Sauvegarder automatiquement mes simulations
+                    </Label>
                   </div>
                 </div>
-                <Button className="bg-benin-green hover:bg-benin-green/90">
+                <Button 
+                  className="bg-benin-green hover:bg-benin-green/90"
+                  onClick={() => {
+                    // Sauvegarder les préférences dans le localStorage
+                    localStorage.setItem('userPreferences', JSON.stringify({
+                      defaultCountry,
+                      defaultFamilyStatus,
+                      autoSave
+                    }));
+                    
+                    toast({
+                      title: "Préférences sauvegardées",
+                      description: "Vos préférences ont été mises à jour avec succès",
+                      variant: "default"
+                    });
+                  }}
+                >
                   Sauvegarder les préférences
                 </Button>
               </CardContent>
@@ -779,7 +839,11 @@ const Dashboard = () => {
                     <Download className="mr-2 h-4 w-4" />
                     Télécharger PDF
                   </Button>
-                  <Button variant="outline" className="flex-1">
+                  <Button 
+                    variant="outline" 
+                    className="flex-1"
+                    onClick={() => handleShareSimulation(selectedSimulation)}
+                  >
                     <Share2 className="mr-2 h-4 w-4" />
                     Partager
                   </Button>
