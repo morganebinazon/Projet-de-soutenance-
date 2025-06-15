@@ -1,6 +1,24 @@
 import React, { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { ArrowLeft, Calculator, Download, Plus, Trash2, Users, Building, PieChart, BarChart2, HelpCircle, Filter, Search, Eye, Edit, Send, UserCheck } from "lucide-react";
+import { 
+  ArrowLeft, 
+  Calculator, 
+  Download, 
+  Plus, 
+  Trash2, 
+  Users, 
+  Building, 
+  PieChart, 
+  BarChart2, 
+  HelpCircle, 
+  Filter, 
+  Search, 
+  Eye, 
+  Edit, 
+  Send, 
+  UserCheck,
+  Loader2 
+} from "lucide-react";
 import Layout from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -18,10 +36,9 @@ import { SalaryDistributionChart, DepartmentChart, MonthlyEvolutionChart, Budget
 import { toast } from "sonner";
 import jsPDF from 'jspdf';
 import 'jspdf-autotable';
-import { Loader2 } from "lucide-react";
 import { usePayrollStore } from "@/stores/payroll.store";
 
-// Types intégrés avec le dashboard
+// Types
 interface Employee {
   id: string;
   name: string;
@@ -65,6 +82,30 @@ interface MonthlyData {
   employeeCount: number;
 }
 
+interface ChartData {
+  salaryDistributionData: Array<{
+    name: string;
+    value: number;
+  }>;
+  departmentData: Array<{
+    name: string;
+    salary: number;
+    employees: number;
+    budget: number;
+  }>;
+}
+
+interface SimulationParams {
+  generalIncreaseRate: number;
+  inflationRate: number;
+  horizonMonths: number;
+  employerChargesRate: number;
+  recruitmentCount: number;
+  departureCount: number;
+  promotionCount: number;
+  departmentGrowth: { [key: string]: number };
+}
+
 const SimulationEnterprise: React.FC = () => {
   const navigate = useNavigate();
   const { country } = useCountry();
@@ -78,6 +119,10 @@ const SimulationEnterprise: React.FC = () => {
   const [showSendBulletin, setShowSendBulletin] = useState(false);
   const [simulationResults, setSimulationResults] = useState<SimulationResult[]>([]);
   const [monthlyData, setMonthlyData] = useState<MonthlyData[]>([]);
+  const [chartData, setChartData] = useState<ChartData>({
+    salaryDistributionData: [],
+    departmentData: []
+  });
   
   // Intégration avec le store du dashboard
   const {
@@ -178,6 +223,29 @@ const SimulationEnterprise: React.FC = () => {
       }
     };
   };
+
+  // Mise à jour des données des graphiques
+  useEffect(() => {
+    const newChartData: ChartData = {
+      salaryDistributionData: [
+        { name: "Salaires bruts", value: totalGrossSalary },
+        { name: "Charges sociales", value: socialContributions },
+        { name: "Avantages", value: totalBenefits }
+      ],
+      departmentData: departments.map(dept => {
+        const deptEmployees = employees.filter(emp => emp.department === dept.name);
+        const deptSalary = deptEmployees.reduce((sum, emp) => sum + emp.grossSalary, 0);
+        
+        return {
+          name: dept.name,
+          salary: deptSalary,
+          employees: deptEmployees.length,
+          budget: dept.budget
+        };
+      })
+    };
+    setChartData(newChartData);
+  }, [employees, departments, totalGrossSalary, socialContributions, totalBenefits]);
 
   // Filtrer les employés selon les critères
   const filteredEmployees = employees.filter(employee => {
@@ -344,30 +412,22 @@ const SimulationEnterprise: React.FC = () => {
     toast.success("Rapport généré avec succès");
   };
 
-  // Calculer les données pour les graphiques
-  const calculateChartData = () => {
-    const salaryDistributionData = [
-      { name: "Salaires bruts", value: stats.totalGrossSalary },
-      { name: "Charges sociales", value: socialContributions },
-      { name: "Avantages", value: totalBenefits }
-    ];
-
-    const departmentData = departments.map(dept => {
-      const deptEmployees = employees.filter(emp => emp.department === dept.name);
-      const deptSalary = deptEmployees.reduce((sum, emp) => sum + emp.grossSalary, 0);
-      
-      return {
-        name: dept.name,
-        salary: deptSalary,
-        employees: deptEmployees.length,
-        budget: dept.budget
-      };
-    });
-
-    return { salaryDistributionData, departmentData };
+  const handleSimulation = (params: SimulationParams) => {
+    // TODO: Implémenter la logique de simulation
+    const result: SimulationResult = {
+      currentPayroll: employees.reduce((sum, emp) => sum + emp.grossSalary, 0),
+      projectedPayroll: employees.reduce((sum, emp) => sum + emp.grossSalary, 0) * 1.2,
+      totalIncrease: employees.reduce((sum, emp) => sum + emp.grossSalary, 0) * 0.2,
+      percentageIncrease: 20,
+      factors: [
+        { name: 'Augmentation générale', impact: 1000000, percentage: 50 },
+        { name: 'Recrutements', impact: 500000, percentage: 25 },
+        { name: 'Départs', impact: -300000, percentage: -15 },
+        { name: 'Promotions', impact: 800000, percentage: 40 }
+      ]
+    };
+    setSimulationResults([result]);
   };
-
-  const chartData = calculateChartData();
 
   return (
     <Layout>
@@ -388,7 +448,6 @@ const SimulationEnterprise: React.FC = () => {
               Gérez votre masse salariale et simulez les salaires • {stats.totalEmployees} employés
             </p>
           </div>
-          
         </div>
         
         <Tabs defaultValue="overview" value={activeTab} onValueChange={setActiveTab} className="space-y-6">

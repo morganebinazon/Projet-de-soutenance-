@@ -25,8 +25,7 @@ interface SimulationParams {
     generalIncrease: string;
     inflation: string;
     horizon: string;
-    // NOUVEAU: Taux de charges patronales
-    employerChargesRate: string; // Taux en pourcentage (ex: "15.4" pour 15.4%)
+    employerChargesRate: string;
     recruitment: {
         enabled: boolean;
         count: string;
@@ -41,8 +40,8 @@ interface SimulationParams {
     };
     departments: {
         [key: string]: {
-            growth: string; // Percentage increase for existing department payroll
-            newPositions: string; // Number of new positions
+            growth: string;
+            newPositions: string;
         };
     };
 }
@@ -242,21 +241,16 @@ const AdvancedSimulationModal: React.FC<AdvancedSimulationModalProps> = ({
     };
 
     // Helper pour calculer le coût total d'un employé (Salaire Brut + Bénéfices + Charges Patronales)
-    const calculateEmployeeTotalCost = (employee: Employee, employerChargesRate: number): number => {
+    const calculateEmployeeTotalCost = (employee: Employee): number => {
         const benefits = Object.values(employee.benefits).reduce((a, b) => a + (b || 0), 0);
-        const employeeBaseCost = employee.grossSalary + benefits;
-
-        // C'est ici que nous ajoutons les charges patronales
-        // Le taux est déjà en décimal (ex: 0.154)
-        const totalCost = employeeBaseCost * (1 + employerChargesRate);
-        return totalCost;
+        const employerChargesRate = parseFloat(params.employerChargesRate) / 100;
+        const baseCost = employee.grossSalary + benefits;
+        const employerCharges = employee.grossSalary * employerChargesRate;
+        return baseCost + employerCharges;
     };
 
     // --- Fonction de calcul de la simulation (Complétée) ---
     const calculateSimulation = (): SimulationResults => {
-        // Taux de charges patronales à utiliser pour la simulation
-        const employerChargesRateDecimal = parseFloat(params.employerChargesRate) / 100;
-
         if (employees.length === 0) {
             return {
                 currentPayroll: 0,
@@ -268,49 +262,44 @@ const AdvancedSimulationModal: React.FC<AdvancedSimulationModalProps> = ({
             };
         }
 
-        // currentPayroll prend maintenant en compte les charges patronales
-        let currentPayroll = employees.reduce((sum, emp) => sum + calculateEmployeeTotalCost(emp, employerChargesRateDecimal), 0);
-        // currentPayroll représente le COÛT TOTAL MENSUEL ACTUEL pour l'entreprise
+        // Calcul de la masse salariale actuelle avec les charges patronales
+        let currentPayroll = employees.reduce((sum, emp) => sum + calculateEmployeeTotalCost(emp), 0);
         const generalIncreaseRate = parseFloat(params.generalIncrease) / 100;
         const inflationRate = parseFloat(params.inflation) / 100;
         const horizonMonths = parseInt(params.horizon);
 
         let projectedPayroll = currentPayroll;
         let monthlyProjections: Array<{ name: string; value: number }> = [];
-        let initialTotalCost = currentPayroll; // Pour le calcul des facteurs
+        let initialTotalCost = currentPayroll;
 
-        // Coûts/économies pour les facteurs d'évolution (par mois)
-        // Note: Ces impacts sont maintenant basés sur le coût total, incluant les charges patronales
+        // Impacts des différents facteurs
         let generalIncreaseImpact = 0;
         let recruitmentImpact = 0;
         let departuresImpact = 0;
         let promotionsImpact = 0;
         let departmentGrowthImpact = 0;
 
-        // Simulation mois par mois
         let currentEmployeesCount = employees.length;
-        let tempCurrentPayroll = currentPayroll; // Masse salariale qui évolue mois par mois
+        let tempCurrentPayroll = currentPayroll;
 
-        // Calcul du coût moyen par employé *incluant les charges*
-        const averageEmployeeTotalCost = currentPayroll / employees.length;
-
-
+        // Simulation mois par mois
         for (let month = 1; month <= horizonMonths; month++) {
             let monthPayroll = tempCurrentPayroll;
 
-            // 1. Impact de l'augmentation générale (généralement annuelle, appliquée au premier mois de l'année/horizon)
-            // L'augmentation générale affecte le salaire brut, donc l'impact se propage au coût total
+            // 1. Impact de l'augmentation générale
             if (month === 1 && generalIncreaseRate > 0) {
-                const increaseThisMonth = tempCurrentPayroll * generalIncreaseRate; // Appliqué sur le coût total
+                const increaseThisMonth = tempCurrentPayroll * generalIncreaseRate;
                 monthPayroll += increaseThisMonth;
                 generalIncreaseImpact += increaseThisMonth;
             }
 
+            // Calcul du coût moyen par employé (incluant les charges patronales)
+            const averageEmployeeCost = currentPayroll / employees.length;
+
             // 2. Impact des recrutements
-            // Le coût moyen d'un nouvel employé inclut aussi les charges patronales
             if (params.recruitment.enabled && parseInt(params.recruitment.count) > 0) {
                 const monthlyRecruitmentCount = Math.ceil(parseInt(params.recruitment.count) / horizonMonths);
-                const newRecruitCost = monthlyRecruitmentCount * averageEmployeeTotalCost;
+                const newRecruitCost = monthlyRecruitmentCount * averageEmployeeCost;
                 monthPayroll += newRecruitCost;
                 recruitmentImpact += newRecruitCost;
                 currentEmployeesCount += monthlyRecruitmentCount;
@@ -319,7 +308,7 @@ const AdvancedSimulationModal: React.FC<AdvancedSimulationModalProps> = ({
             // 3. Impact des départs
             if (params.departures.enabled && parseInt(params.departures.count) > 0) {
                 const monthlyDepartureCount = Math.ceil(parseInt(params.departures.count) / horizonMonths);
-                const departureSavings = monthlyDepartureCount * averageEmployeeTotalCost;
+                const departureSavings = monthlyDepartureCount * averageEmployeeCost;
                 monthPayroll -= departureSavings;
                 departuresImpact -= departureSavings;
                 currentEmployeesCount -= monthlyDepartureCount;
@@ -327,8 +316,7 @@ const AdvancedSimulationModal: React.FC<AdvancedSimulationModalProps> = ({
 
             // 4. Impact des promotions
             if (month === 1 && params.promotions.enabled && parseInt(params.promotions.count) > 0) {
-                // L'augmentation de 5% est sur le salaire brut, donc l'impact sur le coût total est 5% du coût total moyen
-                const promoCost = averageEmployeeTotalCost * 0.05 * parseInt(params.promotions.count);
+                const promoCost = averageEmployeeCost * 0.05 * parseInt(params.promotions.count);
                 monthPayroll += promoCost;
                 promotionsImpact += promoCost;
             }
@@ -338,40 +326,41 @@ const AdvancedSimulationModal: React.FC<AdvancedSimulationModalProps> = ({
                 const deptGrowthRate = parseFloat(deptValues.growth) / 100;
                 const deptNewPositions = parseInt(deptValues.newPositions);
 
+                // Croissance des salaires existants
                 if (month === 1 && deptGrowthRate > 0) {
-                    // Calculer la masse salariale (coût total) actuelle pour ce département
-                    const currentDeptTotalCost = employees
+                    const currentDeptPayroll = employees
                         .filter(emp => emp.department === deptName)
-                        .reduce((sum, emp) => sum + calculateEmployeeTotalCost(emp, employerChargesRateDecimal), 0);
-                    const deptGrowthCost = currentDeptTotalCost * deptGrowthRate;
+                        .reduce((sum, emp) => sum + calculateEmployeeTotalCost(emp), 0);
+                    const deptGrowthCost = currentDeptPayroll * deptGrowthRate;
                     monthPayroll += deptGrowthCost;
                     departmentGrowthImpact += deptGrowthCost;
                 }
 
+                // Nouveaux postes
                 if (deptNewPositions > 0) {
                     const monthlyDeptNewPositions = Math.ceil(deptNewPositions / horizonMonths);
-                    const newDeptPositionCost = monthlyDeptNewPositions * averageEmployeeTotalCost;
+                    const newDeptPositionCost = monthlyDeptNewPositions * averageEmployeeCost;
                     monthPayroll += newDeptPositionCost;
                     departmentGrowthImpact += newDeptPositionCost;
                     currentEmployeesCount += monthlyDeptNewPositions;
                 }
             });
 
-            // 6. Impact de l'inflation (appliquée mensuellement sur la nouvelle masse salariale)
-            const monthlyInflationRate = Math.pow(1 + inflationRate, 1 / 12) - 1;
+            // 6. Impact de l'inflation
+            const monthlyInflationRate = Math.pow(1 + inflationRate, 1/12) - 1;
             monthPayroll *= (1 + monthlyInflationRate);
 
             monthlyProjections.push({ name: `Mois ${month}`, value: monthPayroll });
             tempCurrentPayroll = monthPayroll;
         }
 
+        // Calcul des résultats finaux
         projectedPayroll = monthlyProjections[horizonMonths - 1]?.value || currentPayroll;
-
         const totalIncrease = projectedPayroll - currentPayroll;
         const increasePercentage = (totalIncrease / currentPayroll) * 100;
 
+        // Calcul des facteurs d'évolution
         const factors: Array<{ name: string; amount: number; percentage: number }> = [];
-
         const totalImpact = projectedPayroll - initialTotalCost;
 
         const addFactor = (name: string, impact: number) => {
@@ -382,7 +371,7 @@ const AdvancedSimulationModal: React.FC<AdvancedSimulationModalProps> = ({
                     percentage: (impact * horizonMonths / Math.abs(totalImpact)) * 100 || 0
                 });
             }
-        }
+        };
 
         addFactor("Augmentation Générale", generalIncreaseImpact / horizonMonths);
         addFactor("Coût Recrutements", recruitmentImpact / horizonMonths);
@@ -390,12 +379,11 @@ const AdvancedSimulationModal: React.FC<AdvancedSimulationModalProps> = ({
         addFactor("Coût Promotions", promotionsImpact / horizonMonths);
         addFactor("Croissance/Nouveaux postes Dép.", departmentGrowthImpact / horizonMonths);
 
-
+        // Normalisation des pourcentages
         const absoluteSumOfImpacts = factors.reduce((sum, f) => sum + Math.abs(f.amount), 0);
         factors.forEach(f => {
             f.percentage = (Math.abs(f.amount) / absoluteSumOfImpacts) * 100 || 0;
         });
-
 
         return {
             currentPayroll: initialTotalCost,
@@ -532,17 +520,14 @@ const AdvancedSimulationModal: React.FC<AdvancedSimulationModalProps> = ({
                                             </SelectContent>
                                         </Select>
                                     </div>
-                                    {/* NOUVEAU: Champ pour le taux de charges patronales */}
                                     <div>
-                                        <Label htmlFor="employer-charges-rate" className="text-xs">Taux de charges patronales (%)</Label>
+                                        <Label htmlFor="employer-charges" className="text-xs">Taux de charges patronales (%)</Label>
                                         <Input
-                                            id="employer-charges-rate"
+                                            id="employer-charges"
                                             type="number"
                                             value={params.employerChargesRate}
                                             onChange={(e) => setParams({ ...params, employerChargesRate: e.target.value })}
                                             className="h-8 text-sm"
-                                            min="0"
-                                            max="100"
                                         />
                                     </div>
                                 </div>

@@ -1,0 +1,362 @@
+import React, { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
+import { ArrowLeft, Calculator, Download, Plus, Trash2, Users, Building, PieChart, BarChart2, HelpCircle, Filter, Search, Eye, Edit, Send, UserCheck, Loader2 } from "lucide-react";
+import Layout from "@/components/layout/Layout";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Separator } from "@/components/ui/separator";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Badge } from "@/components/ui/badge";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { useCountry } from "@/hooks/use-country";
+import { SalaryDistributionChart, DepartmentChart, MonthlyEvolutionChart, BudgetProjectionChart } from "@/components/simulation/EnterpriseCharts";
+import { toast } from "sonner";
+import jsPDF from 'jspdf';
+import 'jspdf-autotable';
+import { usePayrollStore } from "@/stores/payroll.store";
+
+// Types
+interface Employee {
+  id: string;
+  name: string;
+  position: string;
+  department: string;
+  grossSalary: number;
+  benefits: {
+    transport?: number;
+    housing?: number;
+    performance?: number;
+  };
+  familyStatus?: string;
+  children?: number;
+  email?: string;
+  phone?: string;
+  hireDate?: string;
+}
+
+interface Department {
+  id: string;
+  name: string;
+  headcount: number;
+  budget: number;
+  plannedPositions: number;
+  manager?: string;
+}
+
+interface SimulationResult {
+  employee: Employee;
+  grossSalary: number;
+  netSalary: number;
+  socialContributions: number;
+  incomeTax: number;
+  totalCost: number;
+  details: any;
+}
+
+interface MonthlyData {
+  month: number;
+  projectedSalary: number;
+  employeeCount: number;
+  salary?: number;
+  employees?: Employee[];
+}
+
+interface ChartData {
+  salaryDistributionData: Array<{
+    name: string;
+    value: number;
+  }>;
+  departmentData: Array<{
+    name: string;
+    salary: number;
+    employees: number;
+    budget: number;
+  }>;
+}
+
+interface SimulationParams {
+  generalIncreaseRate: number;
+  inflationRate: number;
+  horizonMonths: number;
+  employerChargesRate: number;
+  recruitmentCount: number;
+  departureCount: number;
+  promotionCount: number;
+  departmentGrowth: { [key: string]: number };
+}
+
+const SimulationEnterprise: React.FC = () => {
+  const navigate = useNavigate();
+  const { country } = useCountry();
+  const [isLoading, setIsLoading] = useState(false);
+  const [employees, setEmployees] = useState<Employee[]>([]);
+  const [departments, setDepartments] = useState<Department[]>([]);
+  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
+  const [showEmployeeDetails, setShowEmployeeDetails] = useState(false);
+  const [showEmployeeSimulation, setShowEmployeeSimulation] = useState(false);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filters, setFilters] = useState({
+    department: "all",
+    minSalary: 0,
+    maxSalary: Infinity
+  });
+  const [chartData, setChartData] = useState<ChartData>({
+    salaryDistributionData: [],
+    departmentData: []
+  });
+
+  // Calcul des totaux
+  const totalGrossSalary = employees.reduce((sum, emp) => sum + emp.grossSalary, 0);
+  const socialContributions = totalGrossSalary * 0.15; // 15% de charges sociales
+  const totalBenefits = employees.reduce((sum, emp) => 
+    sum + (emp.benefits.transport || 0) + (emp.benefits.housing || 0) + (emp.benefits.performance || 0), 0);
+
+  // Mise à jour des données des graphiques
+  useEffect(() => {
+    const newChartData: ChartData = {
+      salaryDistributionData: [
+        { name: "Salaires bruts", value: totalGrossSalary },
+        { name: "Charges sociales", value: socialContributions },
+        { name: "Avantages", value: totalBenefits }
+      ],
+      departmentData: departments.map(dept => {
+        const deptEmployees = employees.filter(emp => emp.department === dept.name);
+        const deptSalary = deptEmployees.reduce((sum, emp) => sum + emp.grossSalary, 0);
+        
+        return {
+          name: dept.name,
+          salary: deptSalary,
+          employees: deptEmployees.length,
+          budget: dept.budget
+        };
+      })
+    };
+    setChartData(newChartData);
+  }, [employees, departments, totalGrossSalary, socialContributions, totalBenefits]);
+
+  // Filtrer les employés selon les critères
+  const filteredEmployees = employees.filter(employee => {
+    const matchesSearch = 
+      employee.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      employee.position.toLowerCase().includes(searchTerm.toLowerCase()) ||
+      employee.department.toLowerCase().includes(searchTerm.toLowerCase());
+    
+    const matchesDepartment = filters.department === "all" || employee.department === filters.department;
+    const matchesSalary = employee.grossSalary >= filters.minSalary && employee.grossSalary <= filters.maxSalary;
+    
+    return matchesSearch && matchesDepartment && matchesSalary;
+  });
+
+  const formatCurrency = (value: number) => {
+    return new Intl.NumberFormat('fr-FR', {
+      style: 'currency',
+      currency: 'XOF',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0
+    }).format(value);
+  };
+
+  // Voir les détails d'un employé
+  const handleViewEmployee = (employee: Employee) => {
+    setSelectedEmployee(employee);
+    setShowEmployeeDetails(true);
+  };
+
+  // Simuler le salaire d'un employé
+  const handleSimulateEmployee = (employee: Employee) => {
+    setSelectedEmployee(employee);
+    setShowEmployeeSimulation(true);
+  };
+
+  // Supprimer un employé
+  const handleDeleteEmployee = (employeeId: string) => {
+    const employee = employees.find(emp => emp.id === employeeId);
+    if (employee) {
+      setEmployees(prev => prev.filter(emp => emp.id !== employeeId));
+      toast.success(`${employee.name} a été supprimé de la liste`);
+    }
+  };
+
+  // Simulation avancée
+  const handleAdvancedSimulation = () => {
+    // TODO: Implémenter la logique de simulation avancée
+    toast.info("Fonctionnalité en cours de développement");
+  };
+
+  // Télécharger le rapport
+  const handleDownloadReport = () => {
+    const doc = new jsPDF();
+    
+    // En-tête
+    doc.setFontSize(20);
+    doc.text("Rapport de Simulation", 105, 20, { align: "center" });
+    
+    // Données des employés
+    const employeeData = employees.map(emp => [
+      emp.name,
+      emp.position,
+      emp.department,
+      formatCurrency(emp.grossSalary)
+    ]);
+    
+    (doc as any).autoTable({
+      head: [["Nom", "Poste", "Département", "Salaire"]],
+      body: employeeData,
+      startY: 30
+    });
+    
+    doc.save("simulation-report.pdf");
+    toast.success("Rapport téléchargé avec succès");
+  };
+
+  return (
+    <Layout>
+      <div className="container mx-auto p-6">
+        <div className="flex justify-between items-center mb-6">
+          <div className="flex items-center gap-4">
+            <Button variant="outline" onClick={() => navigate(-1)}>
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Retour
+            </Button>
+            <h1 className="text-2xl font-bold">Simulation des Salaires</h1>
+          </div>
+          <div className="flex gap-2">
+            <Button onClick={handleAdvancedSimulation}>
+              <Calculator className="w-4 h-4 mr-2" />
+              Simulation Avancée
+            </Button>
+            <Button onClick={handleDownloadReport}>
+              <Download className="w-4 h-4 mr-2" />
+              Télécharger
+            </Button>
+          </div>
+        </div>
+
+        {/* Filtres et recherche */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+          <Input
+            placeholder="Rechercher un employé..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="w-full"
+          />
+          <Select
+            value={filters.department}
+            onValueChange={(value) => setFilters(prev => ({ ...prev, department: value }))}
+          >
+            <SelectTrigger>
+              <SelectValue placeholder="Département" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">Tous les départements</SelectItem>
+              {departments.map(dept => (
+                <SelectItem key={dept.id} value={dept.name}>
+                  {dept.name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <div className="flex gap-2">
+            <Input
+              type="number"
+              placeholder="Salaire min"
+              value={filters.minSalary}
+              onChange={(e) => setFilters(prev => ({ ...prev, minSalary: Number(e.target.value) }))}
+            />
+            <Input
+              type="number"
+              placeholder="Salaire max"
+              value={filters.maxSalary}
+              onChange={(e) => setFilters(prev => ({ ...prev, maxSalary: Number(e.target.value) }))}
+            />
+          </div>
+        </div>
+
+        {/* Graphiques */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Distribution des Salaires</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <SalaryDistributionChart data={chartData.salaryDistributionData} />
+            </CardContent>
+          </Card>
+          <Card>
+            <CardHeader>
+              <CardTitle>Par Département</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <DepartmentChart data={chartData.departmentData} />
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Liste des employés */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Liste des Employés</CardTitle>
+            <CardDescription>
+              {filteredEmployees.length} employés trouvés
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Nom</TableHead>
+                  <TableHead>Poste</TableHead>
+                  <TableHead>Département</TableHead>
+                  <TableHead>Salaire Brut</TableHead>
+                  <TableHead>Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredEmployees.map(employee => (
+                  <TableRow key={employee.id}>
+                    <TableCell>{employee.name}</TableCell>
+                    <TableCell>{employee.position}</TableCell>
+                    <TableCell>{employee.department}</TableCell>
+                    <TableCell>{formatCurrency(employee.grossSalary)}</TableCell>
+                    <TableCell>
+                      <div className="flex gap-2">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleViewEmployee(employee)}
+                        >
+                          <Eye className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleSimulateEmployee(employee)}
+                        >
+                          <Calculator className="w-4 h-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          onClick={() => handleDeleteEmployee(employee.id)}
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          </CardContent>
+        </Card>
+      </div>
+    </Layout>
+  );
+};
+
+export default SimulationEnterprise; 

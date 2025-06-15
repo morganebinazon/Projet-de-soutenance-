@@ -74,7 +74,7 @@ const Dashboard = () => {
   const navigate = useNavigate();
   const { country } = useCountry();
   const { user: currentUser } = useAuthStore();
-  const { simulations: simulationHistory, removeSimulation } = useSimulationStore();
+  const { simulations: simulationHistory, removeSimulation, clearOldSimulations } = useSimulationStore();
   const [selectedSimulation, setSelectedSimulation] = useState<any>(null);
   const [showSimulationDetails, setShowSimulationDetails] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
@@ -93,7 +93,9 @@ const Dashboard = () => {
       setDefaultFamilyStatus(preferences.defaultFamilyStatus || "single");
       setAutoSave(preferences.autoSave ?? true);
     }
-  }, [country]);
+    // Nettoyer les anciennes simulations
+    clearOldSimulations();
+  }, [country, clearOldSimulations]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('fr-FR', {

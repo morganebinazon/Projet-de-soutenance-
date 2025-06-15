@@ -3,6 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
+import { toast } from "sonner";
 import Layout from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
@@ -24,7 +25,7 @@ import { useToast } from "@/components/ui/use-toast";
 import AdvancedSimulationModal from "@/components/modals/AdvancedSimulationModal";
 import AddEmployeeModal from "@/components/modals/AddEmployeeModal";
 import AddDepartmentModal from "@/components/modals/AddDepartmentModal";
-import DepartmentDetailsModal from "@/components/modals/DepartmentDetailsModal";
+import { DepartmentDetailsModal } from "@/components/modals/DepartmentDetailsModal";
 import { Employee, Department, PayrollStats } from "@/types/payroll";
 import { Report, ReportType } from "@/types/reports";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -84,50 +85,146 @@ const employeeFormSchema = z.object({
 
 type EmployeeFormValues = z.infer<typeof employeeFormSchema>;
 
-// Interfaces pour les paramètres de l'entreprise
-interface CompanySettings {
-  companyInfo: {
-    name: string;
-    legalForm: string;
-    rccm: string;
-    ifu: string;
-    creationDate: string;
-    sector: string;
-  };
-  payrollSettings: {
-    cycle: 'monthly' | 'biweekly' | 'weekly';
-    payDay: 'last' | '25' | '30';
-    cnssNumber: string;
-    autoDeclarations: boolean;
-  };
-  logo?: string;
+// Définition des types de base
+interface CompanyInfo {
+  name: string;
+  legalForm: string;
+  rccm: string;
+  ifu: string;
+  creationDate: string;
+  sector: string;
 }
 
-// Schéma de validation pour les paramètres
-const companySettingsSchema = z.object({
-  companyInfo: z.object({
-    name: z.string().min(2, "Le nom doit contenir au moins 2 caractères"),
-    legalForm: z.string().min(1, "La forme juridique est requise"),
-    rccm: z.string().min(5, "Le RCCM doit être valide"),
-    ifu: z.string().min(5, "L'IFU doit être valide"),
-    creationDate: z.string(),
-    sector: z.string().min(2, "Le secteur d'activité est requis"),
-  }),
-  payrollSettings: z.object({
-    cycle: z.enum(['monthly', 'biweekly', 'weekly']),
-    payDay: z.enum(['last', '25', '30']),
-    cnssNumber: z.string().min(5, "Le numéro CNSS doit être valide"),
-    autoDeclarations: z.boolean(),
-  }),
+interface PayrollSettings {
+  cycle: 'monthly' | 'biweekly' | 'weekly';
+  payDay: 'last' | '25' | '30';
+  cnssNumber: string;
+  autoDeclarations: boolean;
+}
+
+interface CompanySettings {
+  companyInfo: CompanyInfo;
+  payrollSettings: PayrollSettings;
+  logo?: string;
+  generalIncreaseRate: number;
+  inflationRate: number;
+  employerChargesRate: number;
+}
+
+// Schéma de validation Zod
+const companyInfoSchema = z.object({
+  name: z.string().min(1, "Le nom est requis"),
+  legalForm: z.string().min(1, "La forme juridique est requise"),
+  rccm: z.string().min(1, "Le RCCM est requis"),
+  ifu: z.string().min(1, "L'IFU est requis"),
+  creationDate: z.string().min(1, "La date de création est requise"),
+  sector: z.string().min(1, "Le secteur est requis")
 });
 
+const payrollSettingsSchema = z.object({
+  cycle: z.enum(['monthly', 'biweekly', 'weekly']),
+  payDay: z.enum(['last', '25', '30']),
+  cnssNumber: z.string().min(1, "Le numéro CNSS est requis"),
+  autoDeclarations: z.boolean()
+});
+
+const companySettingsSchema = z.object({
+  companyInfo: companyInfoSchema,
+  payrollSettings: payrollSettingsSchema,
+  logo: z.string().optional(),
+  generalIncreaseRate: z.number(),
+  inflationRate: z.number(),
+  employerChargesRate: z.number(),
+});
+
+// Type pour le formulaire
 type CompanySettingsFormValues = z.infer<typeof companySettingsSchema>;
+
+// État initial des paramètres de l'entreprise
+const initialCompanySettings: CompanySettings = {
+  companyInfo: {
+    name: '',
+    legalForm: '',
+    rccm: '',
+    ifu: '',
+    creationDate: '',
+    sector: ''
+  },
+  payrollSettings: {
+    cycle: 'monthly',
+    payDay: 'last',
+    cnssNumber: '',
+    autoDeclarations: false
+  },
+  generalIncreaseRate: 0,
+  inflationRate: 0,
+  employerChargesRate: 0,
+};
+
+// État initial de l'utilisateur
+const initialUser: User = {
+  id: '',
+  email: '',
+  accountType: 'enterprise',
+  company: 'Nom de l\'entreprise'
+};
+
+// Correction du type User et de son état
+interface User {
+  id: string;
+  email: string;
+  accountType: string;
+  company: string;
+}
+
+interface AuthUser {
+  id: string;
+  email: string;
+  accountType: string;
+  company: string;
+}
+
+// Correction de l'interface DepartmentDetailsModalProps
+interface DepartmentDetailsModalProps {
+  isOpen: boolean;
+  department: Department;
+  onClose: () => void;
+  onEdit: (department: Department) => void;
+  employeeCount: number;
+  totalSalary: number;
+}
+
+const handleUpdateCompanyInfo = async (data: Partial<CompanyInfo>) => {
+  try {
+    const updatedCompanyInfo: CompanyInfo = {
+      name: data.name ?? companySettings.companyInfo.name,
+      legalForm: data.legalForm ?? companySettings.companyInfo.legalForm,
+      rccm: data.rccm ?? companySettings.companyInfo.rccm,
+      ifu: data.ifu ?? companySettings.companyInfo.ifu,
+      creationDate: data.creationDate ?? companySettings.companyInfo.creationDate,
+      sector: data.sector ?? companySettings.companyInfo.sector
+    };
+
+    const updatedSettings: CompanySettings = {
+      ...companySettings,
+      companyInfo: updatedCompanyInfo
+    };
+
+    const validatedData = companySettingsSchema.parse(updatedSettings);
+    setCompanySettings(validatedData);
+
+    toast.success("Les informations de l'entreprise ont été mises à jour avec succès.");
+  } catch (error) {
+    console.error("Erreur lors de la mise à jour des paramètres:", error);
+    toast.error("Une erreur est survenue lors de la mise à jour des paramètres.");
+  }
+};
 
 const EnterpriseDashboard = () => {
   const navigate = useNavigate();
   const { country } = useCountry();
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user: authUser } = useAuth();
   const currencySymbol = "FCFA";
   const [selectedPeriod, setSelectedPeriod] = useState("month");
   const [searchQuery, setSearchQuery] = useState("");
@@ -177,22 +274,8 @@ const EnterpriseDashboard = () => {
   });
 
   // État pour les paramètres de l'entreprise
-  const [companySettings, setCompanySettings] = useState<CompanySettings>({
-    companyInfo: {
-      name: "Technoplus Bénin SARL",
-      legalForm: "SARL",
-      rccm: "RB/COT/18/A/2563",
-      ifu: "3201865430",
-      creationDate: "15/03/2018",
-      sector: "Technologie et Services"
-    },
-    payrollSettings: {
-      cycle: "monthly",
-      payDay: "25",
-      cnssNumber: "33562-B",
-      autoDeclarations: true
-    }
-  });
+  const [companySettings, setCompanySettings] = useState<CompanySettings>(initialCompanySettings);
+  const [user, setUser] = useState<User>(initialUser);
 
   // Formulaire pour les paramètres
   const settingsForm = useForm<CompanySettingsFormValues>({
@@ -477,51 +560,26 @@ const EnterpriseDashboard = () => {
     setShowAddDepartment(true);
   };
 
-  // Fonction pour mettre à jour les informations de l'entreprise
-  const handleUpdateCompanyInfo = async (data: Partial<CompanySettings['companyInfo']>) => {
-    try {
-      setCompanySettings(prev => ({
-        ...prev,
-        companyInfo: {
-          ...prev.companyInfo,
-          ...data
-        }
-      }));
-
-      toast({
-        title: "Mise à jour réussie",
-        description: "Les informations de l'entreprise ont été mises à jour.",
-      });
-    } catch (error) {
-      toast({
-        title: "Erreur",
-        description: "Une erreur est survenue lors de la mise à jour.",
-        variant: "destructive"
-      });
-    }
-  };
-
   // Fonction pour mettre à jour les paramètres de paie
-  const handleUpdatePayrollSettings = async (data: Partial<CompanySettings['payrollSettings']>) => {
+  const handleUpdatePayrollSettings = async (data: Partial<PayrollSettings>) => {
     try {
-      setCompanySettings(prev => ({
-        ...prev,
-        payrollSettings: {
-          ...prev.payrollSettings,
-          ...data
-        }
-      }));
+      const updatedPayrollSettings: PayrollSettings = {
+        ...companySettings.payrollSettings,
+        ...data
+      } as PayrollSettings;
 
-      toast({
-        title: "Mise à jour réussie",
-        description: "Les paramètres de paie ont été mis à jour.",
-      });
+      const updatedSettings: CompanySettings = {
+        ...companySettings,
+        payrollSettings: updatedPayrollSettings
+      };
+
+      const validatedData = companySettingsSchema.parse(updatedSettings);
+      setCompanySettings(validatedData);
+
+      toast.success("Les paramètres de paie ont été mis à jour avec succès.");
     } catch (error) {
-      toast({
-        title: "Erreur",
-        description: "Une erreur est survenue lors de la mise à jour.",
-        variant: "destructive"
-      });
+      console.error("Erreur lors de la mise à jour des paramètres de paie:", error);
+      toast.error("Une erreur est survenue lors de la mise à jour des paramètres de paie.");
     }
   };
 
@@ -603,7 +661,7 @@ const EnterpriseDashboard = () => {
                   <Building className="h-6 w-6 text-primary" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold">{user?.company || "Nom de l'entreprise"}</h1>
+                  <h1 className="text-2xl font-bold">{authUser?.company || "Nom de l'entreprise"}</h1>
                   <p className="text-sm text-muted-foreground">
                     Service RH & Paie • Pays: <span className="font-medium capitalize">{country}</span>
                   </p>
@@ -2140,11 +2198,11 @@ const EnterpriseDashboard = () => {
       {selectedDepartment && (
         <DepartmentDetailsModal
           isOpen={showDepartmentDetails}
-          onClose={() => setShowDepartmentDetails(false)}
           department={selectedDepartment}
+          onClose={() => setShowDepartmentDetails(false)}
           onEdit={handleEditDepartment}
-          employeeCount={selectedDepartment ? employees.filter(emp => emp.department === selectedDepartment.name).length : 0}
-          totalSalary={selectedDepartment ? employees.filter(emp => emp.department === selectedDepartment.name).reduce((sum, emp) => sum + emp.grossSalary, 0) : 0}
+          employeeCount={selectedDepartment.headcount}
+          totalSalary={selectedDepartment.budget}
         />
       )}
     </Layout>
