@@ -9,58 +9,72 @@ export interface TaxTranche {
 export interface SalaryInput {
   salaireBrut: number;
   familyStatus: FamilyStatus;
-  children: string;
+  children: number;
   transportBonus?: number;
   housingBonus?: number;
-  thirteenthMonth?: boolean;
 }
 
 export interface SalaryResult {
-  salaireBrut: number;
   totalBrut: number;
-  salaireNet: number;
-  cnssEmploye: number;
-  fraisPro: number;
-  baseImposable: number;
-  impots: number;
-  impotsDetails: Array<{
-    tranche: string;
-    taux: number;
-    base: number;
-    impot: number;
-  }>;
-  quotientFamilial?: number;
-  chargesPatronales: number;
-  coutTotal: number;
-  tauxPrelevement: number;
-  tauxNet: number;
-  detailsChargesPatronales: {
-    cnssPatronal: number;
-    prestationsFamiliales?: number;
-    versementPatronal?: number;
-    risqueProfessionnel?: number;
-  };
-  avantages: {
-    transport: number;
-    logement: number;
+  netSalary: number;
+  details: {
+    cnss: number;
+    its?: number;
+    irpp?: number;
+    fraisPro: number;
+    baseImposable: number;
+    chargesPatronales: {
+      total: number;
+      vieillesse?: number;
+      prestationsFamiliales?: number;
+      accidentsTravail?: number;
+      taxeDeveloppementLocal?: number;
+      taxeApprentissage?: number;
+      taxeFormationProfessionnelle?: number;
+      taxeSalaire?: number;
+    };
   };
 }
 
 export interface CountryConstants {
+  // Cotisations sociales
   CNSS_EMPLOYE: number;
-  CNSS_PATRONAL: number;
-  PRESTATIONS_FAMILIALES?: number;
-  VERSEMENT_PATRONAL?: number;
-  RISQUE_PROFESSIONNEL?: number;
+  CNSS_PLAFOND: number;
+
+  // Charges patronales
+  CNSS_PATRONAL_VIEILLESSE_TAUX?: number;
+  CNSS_PATRONAL_PRESTATIONS_FAMILIALES_TAUX?: number;
+  CNSS_PATRONAL_ACCIDENTS_TRAVAIL_TAUX?: number;
+  CNSS_PATRONAL_PLAFOND_SPECIFIQUE?: number;
+  CNSS_PATRONAL?: number;
+
+  // Taxes additionnelles
+  TAXE_DEVELOPPEMENT_LOCAL?: number;
+  TAXE_APPRENTISSAGE?: number;
+  TAXE_FORMATION_PROFESSIONNELLE?: number;
+  TAXE_SALAIRE?: number;
+
+  // Frais professionnels
   FRAIS_PRO_TAUX: number;
   FRAIS_PRO_PLAFOND: number;
-  CNSS_PLAFOND: number;
-  PF_VP_PLAFOND?: number;
-  IMPOTS_TRANCHES: TaxTranche[];
+
+  // Barème d'impôt
+  IMPOTS_TRANCHES: Array<{
+    min: number;
+    max: number;
+    taux: number;
+  }>;
+
+  // Quotient familial
   QUOTIENT_FAMILIAL?: {
-    [key in FamilyStatus]: number;
+    single: number;
+    married: number;
+    divorced: number;
+    widowed: number;
   };
   ENFANT_SUPPLEMENT?: number;
   QUOTIENT_FAMILIAL_MAX?: number;
+
+  // Impôt minimum forfaitaire (pour le Togo)
   IMF_MONTANT?: number;
 } 

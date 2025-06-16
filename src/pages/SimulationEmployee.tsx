@@ -177,15 +177,15 @@ const SimulationEmployee = () => {
               </div>
               <div style="border-bottom: 1px solid #eee; padding: 12px; display: flex; justify-content: space-between;">
                 <span>Cotisations sociales (${country === 'benin' ? '3.6%' : '9%'})</span>
-                <span style="color: #dc2626; font-weight: 500;">-${formatCurrency(results.cnssEmploye)}</span>
+                <span style="color: #dc2626; font-weight: 500;">-${formatCurrency(results.details.cnss)}</span>
               </div>
               <div style="border-bottom: 1px solid #eee; padding: 12px; display: flex; justify-content: space-between;">
                 <span>${country === 'benin' ? 'ITS' : 'IRPP'}</span>
-                <span style="color: #dc2626; font-weight: 500;">-${formatCurrency(results.impots)}</span>
+                <span style="color: #dc2626; font-weight: 500;">-${formatCurrency(country === 'benin' ? results.details.its : results.details.irpp)}</span>
               </div>
               <div style="padding: 12px; background: #f0fdf4; display: flex; justify-content: space-between;">
                 <span style="font-weight: bold;">Salaire net mensuel</span>
-                <span style="font-weight: bold; color: #16a34a;">${formatCurrency(results.salaireNet)}</span>
+                <span style="font-weight: bold; color: #16a34a;">${formatCurrency(results.netSalary)}</span>
               </div>
             </div>
           </div>
@@ -200,11 +200,11 @@ const SimulationEmployee = () => {
               </div>
               <div style="border-bottom: 1px solid #eee; padding: 12px; display: flex; justify-content: space-between;">
                 <span>Charges patronales (${country === 'benin' ? '21.4%' : '21.5%'})</span>
-                <span style="font-weight: 500;">+${formatCurrency(results.chargesPatronales)}</span>
+                <span style="font-weight: 500;">+${formatCurrency(results.details.chargesPatronales.total)}</span>
               </div>
               <div style="padding: 12px; background: #f8f8f8; display: flex; justify-content: space-between;">
                 <span style="font-weight: bold;">Coût total employeur</span>
-                <span style="font-weight: bold;">${formatCurrency(results.coutTotal)}</span>
+                <span style="font-weight: bold;">${formatCurrency(results.totalBrut + results.details.chargesPatronales.total)}</span>
               </div>
             </div>
           </div>
@@ -440,9 +440,9 @@ const SimulationEmployee = () => {
                             <div className="space-y-6">
                               <div className="text-center p-6 bg-gray-50 dark:bg-gray-800 rounded-xl">
                                 <h3 className="text-sm font-medium text-muted-foreground mb-1">Salaire net mensuel</h3>
-                                <div className="text-4xl font-bold text-benin-green">{formatCurrency(results.salaireNet)}</div>
+                                <div className="text-4xl font-bold text-benin-green">{formatCurrency(results.netSalary)}</div>
                                 <p className="text-sm text-muted-foreground mt-1">
-                                  Soit {results.tauxNet.toFixed(1)}% du brut
+                                  Soit {((results.netSalary / results.totalBrut) * 100).toFixed(1)}% du brut
                                 </p>
                               </div>
                               
@@ -454,16 +454,16 @@ const SimulationEmployee = () => {
                                   </div>
                                   <div className="flex justify-between text-sm text-red-500">
                                     <span>Cotisations sociales ({country === 'benin' ? '3.6%' : '9%'})</span>
-                                    <span>- {formatCurrency(results.cnssEmploye)}</span>
+                                    <span>- {formatCurrency(results.details.cnss)}</span>
                                   </div>
                                   <div className="flex justify-between text-sm text-red-500">
                                     <span>${country === 'benin' ? 'ITS' : 'IRPP'}</span>
-                                    <span>- {formatCurrency(results.impots)}</span>
+                                    <span>- {formatCurrency(country === 'benin' ? results.details.its : results.details.irpp)}</span>
                                   </div>
                                   <Separator className="my-2" />
                                   <div className="flex justify-between font-medium">
                                     <span>Salaire net mensuel</span>
-                                    <span className="text-benin-green">{formatCurrency(results.salaireNet)}</span>
+                                    <span className="text-benin-green">{formatCurrency(results.netSalary)}</span>
                                   </div>
                                 </div>
                                 
@@ -471,18 +471,18 @@ const SimulationEmployee = () => {
                                   <h3 className="font-medium mb-2">Projection annuelle</h3>
                                   <div className="flex justify-between text-sm">
                                     <span>Net annuel (12 mois)</span>
-                                    <span>{formatCurrency(results.salaireNet * 12)}</span>
+                                    <span>{formatCurrency(results.netSalary * 12)}</span>
                                   </div>
                                   {thirteenthMonth && (
                                     <div className="flex justify-between text-sm text-green-500">
                                       <span>13ème mois</span>
-                                      <span>+ {formatCurrency(results.salaireNet)}</span>
+                                      <span>+ {formatCurrency(results.netSalary)}</span>
                                     </div>
                                   )}
                                   <Separator className="my-2" />
                                   <div className="flex justify-between font-medium">
                                     <span>Total annuel estimé</span>
-                                    <span>{formatCurrency(results.salaireNet * (thirteenthMonth ? 13 : 12))}</span>
+                                    <span>{formatCurrency(results.netSalary * (thirteenthMonth ? 13 : 12))}</span>
                                   </div>
                                 </div>
                                 
@@ -514,7 +514,7 @@ const SimulationEmployee = () => {
                                   <div>
                                     <div className="flex justify-between">
                                       <span>Revenu imposable</span>
-                                      <span>{formatCurrency(results.baseImposable)}</span>
+                                      <span>{formatCurrency(results.details.baseImposable)}</span>
                                     </div>
                                     <div className="text-xs text-muted-foreground">
                                       Salaire brut - cotisations sociales - frais pro
@@ -528,12 +528,17 @@ const SimulationEmployee = () => {
                                       <span>Calcul par tranches:</span>
                                     </div>
                                     <div className="mt-2 space-y-1">
-                                      {results.impotsDetails.map((tranche: any, index: number) => (
-                                        <div key={index} className="flex justify-between">
-                                          <span>Tranche {tranche.taux}% ({tranche.tranche})</span>
-                                          <span>{formatCurrency(tranche.impot)}</span>
+                                      {country === 'benin' ? (
+                                        <div className="flex justify-between">
+                                          <span>ITS sur la base imposable</span>
+                                          <span>{formatCurrency(results.details.its || 0)}</span>
                                         </div>
-                                      ))}
+                                      ) : (
+                                        <div className="flex justify-between">
+                                          <span>IRPP sur la base imposable</span>
+                                          <span>{formatCurrency(results.details.irpp || 0)}</span>
+                                        </div>
+                                      )}
                                     </div>
                                   </div>
                                   
@@ -541,12 +546,12 @@ const SimulationEmployee = () => {
                                   
                                   <div className="flex justify-between">
                                     <span>Total {country === 'benin' ? 'ITS' : 'IRPP'} mensuel</span>
-                                    <span className="font-medium">{formatCurrency(results.impots)}</span>
+                                    <span className="font-medium">{formatCurrency(country === 'benin' ? (results.details.its || 0) : (results.details.irpp || 0))}</span>
                                   </div>
                                   
                                   <div className="flex justify-between text-xs text-muted-foreground">
                                     <span>Taux moyen d'imposition</span>
-                                    <span>{results.tauxPrelevement.toFixed(2)}% du salaire brut</span>
+                                    <span>{((country === 'benin' ? (results.details.its || 0) : (results.details.irpp || 0)) / results.totalBrut * 100).toFixed(2)}% du salaire brut</span>
                                   </div>
                                 </div>
                               </div>
@@ -571,36 +576,32 @@ const SimulationEmployee = () => {
                                 {country === 'benin' ? (
                                   <>
                                     <div className="flex justify-between">
-                                      <span>CNSS patronal (6.4%)</span>
-                                      <span className="font-medium text-red-500">+ {formatCurrency(results.detailsChargesPatronales.cnssPatronal)}</span>
+                                      <span>CNSS patronal (10%)</span>
+                                      <span className="font-medium text-red-500">+ {formatCurrency(results.details.chargesPatronales.vieillesse || 0)}</span>
                                     </div>
                                     <div className="flex justify-between">
-                                      <span>Prestations familiales (9%)</span>
-                                      <span className="font-medium text-red-500">+ {formatCurrency(results.detailsChargesPatronales.prestationsFamiliales)}</span>
+                                      <span>Prestations familiales (6%)</span>
+                                      <span className="font-medium text-red-500">+ {formatCurrency(results.details.chargesPatronales.prestationsFamiliales || 0)}</span>
                                     </div>
                                     <div className="flex justify-between">
-                                      <span>Versement patronal (4%)</span>
-                                      <span className="font-medium text-red-500">+ {formatCurrency(results.detailsChargesPatronales.versementPatronal)}</span>
-                                    </div>
-                                    <div className="flex justify-between">
-                                      <span>Risque professionnel (2%)</span>
-                                      <span className="font-medium text-red-500">+ {formatCurrency(results.detailsChargesPatronales.risqueProfessionnel)}</span>
+                                      <span>Accidents du travail (0.5%)</span>
+                                      <span className="font-medium text-red-500">+ {formatCurrency(results.details.chargesPatronales.accidentsTravail || 0)}</span>
                                     </div>
                                   </>
                                 ) : (
                                   <div className="flex justify-between">
-                                    <span>CNSS patronal (21.5%)</span>
-                                    <span className="font-medium text-red-500">+ {formatCurrency(results.chargesPatronales)}</span>
+                                    <span>CNSS patronal (22.5%)</span>
+                                    <span className="font-medium text-red-500">+ {formatCurrency(results.details.chargesPatronales.total || 0)}</span>
                                   </div>
                                 )}
                                 <Separator className="my-1" />
                                 <div className="flex justify-between">
                                   <span className="font-medium">Coût total employeur</span>
-                                  <span className="font-bold">{formatCurrency(results.coutTotal)}</span>
+                                  <span className="font-bold">{formatCurrency(results.totalBrut + results.details.chargesPatronales.total)}</span>
                                 </div>
                                 <div className="flex justify-between text-xs text-muted-foreground">
                                   <span>Ratio net/coût total</span>
-                                  <span>{((results.salaireNet / results.coutTotal) * 100).toFixed(2)}%</span>
+                                  <span>{((results.netSalary / (results.totalBrut + results.details.chargesPatronales.total)) * 100).toFixed(2)}%</span>
                                 </div>
                               </div>
                             </div>
@@ -718,7 +719,7 @@ const SimulationEmployee = () => {
                           <h3 className="text-sm font-medium text-muted-foreground mb-1">Salaire brut nécessaire</h3>
                           <div className="text-4xl font-bold text-benin-green">{formatCurrency(results.totalBrut)}</div>
                           <p className="text-sm text-muted-foreground mt-1">
-                            Pour obtenir {formatCurrency(results.salaireNet)} net
+                            Pour obtenir {formatCurrency(results.netSalary)} net
                           </p>
                         </div>
                         

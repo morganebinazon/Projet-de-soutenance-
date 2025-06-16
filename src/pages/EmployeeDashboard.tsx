@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useCountry } from "@/hooks/use-country.tsx";
 import { useNavigate } from "react-router-dom";
 import Layout from "@/components/layout/Layout";
@@ -53,11 +53,12 @@ import {
   FileSpreadsheet,
   ChevronDown,
   ChevronUp,
-  Bell
+  Bell,
+  Camera
 } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { toast } from "sonner";
-import { useAuthStore } from "@/stores/authSore";
+import { useAuthStore } from "@/stores/authStore";
 import { useEmployeeStore } from "@/stores/employee.store";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
@@ -113,6 +114,8 @@ const EmployeeDashboard = () => {
     type: "",
     comment: ""
   });
+  const [profileImage, setProfileImage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Format currency for display
   const formatCurrency = (value: number | string) => {
@@ -126,6 +129,69 @@ const EmployeeDashboard = () => {
       month: 'long',
       day: 'numeric'
     });
+  };
+
+  // Charger l'image de profil au montage du composant
+  useEffect(() => {
+    if (employee?.profileImage) {
+      setProfileImage(employee.profileImage);
+    }
+  }, [employee?.profileImage]);
+
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Vérifier le type de fichier
+      if (!file.type.startsWith('image/')) {
+        toast({
+          title: "Erreur",
+          description: "Veuillez sélectionner une image valide",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Vérifier la taille du fichier (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast({
+          title: "Erreur",
+          description: "L'image ne doit pas dépasser 5MB",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      try {
+        // Convertir l'image en base64
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64String = reader.result as string;
+          setProfileImage(base64String);
+          
+          // Mettre à jour l'image dans le store
+          if (employee) {
+            updateEmployee({
+              ...employee,
+              profileImage: base64String
+            });
+          }
+
+          toast({
+            title: "Succès",
+            description: "Photo de profil mise à jour",
+            variant: "default"
+          });
+        };
+        reader.readAsDataURL(file);
+      } catch (error) {
+        console.error('Erreur lors du chargement de l\'image:', error);
+        toast({
+          title: "Erreur",
+          description: "Une erreur s'est produite lors du chargement de l'image",
+          variant: "destructive"
+        });
+      }
+    }
   };
 
   const handleDownloadPayslip = (payslip: any) => {
@@ -368,8 +434,11 @@ const EmployeeDashboard = () => {
     });
   };
 
+  // Unifier la source des documents
+  const documents = employee?.documents && employee.documents.length > 0 ? employee.documents : mockDocuments;
+
   // Filtrer les documents
-  const filteredDocuments = employee?.documents.filter(doc => {
+  const filteredDocuments = documents.filter(doc => {
     const matchesSearch = doc.name.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesType = filterType === "all" || doc.type === filterType;
     return matchesSearch && matchesType;
@@ -381,22 +450,47 @@ const EmployeeDashboard = () => {
         <div className="flex flex-col md:flex-row items-start gap-6 mb-8">
           {/* Employee Profile Card */}
           <div className="w-full md:w-64 flex flex-col items-center bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm">
-            <div className="relative">
+            <div className="relative group">
               <div className="w-20 h-20 rounded-full bg-gradient-to-br from-benin-green to-green-600 overflow-hidden flex items-center justify-center">
+                {profileImage ? (
+                  <img 
+                    src={profileImage} 
+                    alt="Photo de profil" 
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
                 <UserIcon className="h-12 w-12 text-white" />
+                )}
               </div>
               <div className="absolute bottom-0 right-0 h-5 w-5 bg-green-500 rounded-full border-2 border-white dark:border-gray-800"></div>
+              
+              {/* Overlay pour le changement de photo */}
+              <div 
+                className="absolute inset-0 rounded-full bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Camera className="h-6 w-6 text-white" />
             </div>
             
-            <h2 className="mt-4 text-xl font-bold">{employee?.name}</h2>
-            <p className="text-sm text-muted-foreground">{employee?.position}</p>
+              {/* Input caché pour le téléchargement de fichier */}
+              <input
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
+                accept="image/*"
+                onChange={handleImageUpload}
+              />
+            </div>
+            
+            <h2 className="mt-4 text-xl font-bold">{employee?.name || 'Employé'}</h2>
+            <p className="text-sm text-muted-foreground">{employee?.position || 'N/A'}</p>
             <Badge className="mt-2 bg-benin-green" variant="secondary">
-              {employee?.department}
+              {employee?.department || 'N/A'}
             </Badge>
             
             <div className="w-full mt-4 pt-4 border-t">
               <div className="text-sm text-muted-foreground">Membre depuis:</div>
-              <div className="font-medium">{formatDate(employee?.hireDate || '')}</div>
+              <div className="font-medium">{employee?.hireDate ? formatDate(employee.hireDate) : 'N/A'}</div>
             </div>
             
             <Button 
@@ -436,7 +530,7 @@ const EmployeeDashboard = () => {
                   <CardDescription>À prendre avant Déc. 2025</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{employee?.leaves.total - employee?.leaves.taken} jours</div>
+                  <div className="text-2xl font-bold">{employee?.leaves ? (employee.leaves.total - employee.leaves.taken) : 0} jours</div>
                   <div className="flex items-center mt-1 text-xs">
                     <Calendar className="h-3 w-3 mr-1 text-gray-500" />
                     <span className="text-muted-foreground">
@@ -453,7 +547,7 @@ const EmployeeDashboard = () => {
                   <CardDescription>Documents récents</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <div className="text-2xl font-bold">{employee?.documents.length}</div>
+                  <div className="text-2xl font-bold">{employee?.documents ? employee.documents.length : 0}</div>
                   <div className="flex items-center mt-1 text-xs">
                     <FileText className="h-3 w-3 mr-1 text-gray-500" />
                     <span className="text-muted-foreground">
@@ -562,7 +656,7 @@ const EmployeeDashboard = () => {
                 <div className="flex justify-between">
                   <div>
                     <div className="text-sm font-medium">Solde actuel</div>
-                    <div className="text-2xl font-bold">{employee?.leaves.total - employee?.leaves.taken} jours</div>
+                    <div className="text-2xl font-bold">{employee?.leaves ? (employee.leaves.total - employee.leaves.taken) : 0} jours</div>
                   </div>
                   <div>
                     <div className="text-sm font-medium">Utilisés cette année</div>
@@ -618,11 +712,11 @@ const EmployeeDashboard = () => {
                     <div className="space-y-2">
                       <div>
                         <span className="text-sm text-muted-foreground">Poste:</span>
-                        <p className="font-medium">{employee?.position}</p>
+                        <p className="font-medium">{employee?.position || 'N/A'}</p>
                       </div>
                       <div>
                         <span className="text-sm text-muted-foreground">Département:</span>
-                        <p className="font-medium">{employee?.department}</p>
+                        <p className="font-medium">{employee?.department || 'N/A'}</p>
                       </div>
                       <div>
                         <span className="text-sm text-muted-foreground">Manager:</span>
@@ -630,7 +724,7 @@ const EmployeeDashboard = () => {
                       </div>
                       <div>
                         <span className="text-sm text-muted-foreground">Date d'embauche:</span>
-                        <p className="font-medium">{formatDate(employee?.hireDate || '')}</p>
+                        <p className="font-medium">{employee?.hireDate ? formatDate(employee.hireDate) : 'N/A'}</p>
                       </div>
                     </div>
                   </div>
@@ -928,7 +1022,7 @@ const EmployeeDashboard = () => {
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                   <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border">
                     <div className="text-sm text-muted-foreground">Solde actuel</div>
-                    <div className="text-2xl font-bold">{employee?.leaves.total - employee?.leaves.taken} jours</div>
+                    <div className="text-2xl font-bold">{employee?.leaves ? (employee.leaves.total - employee.leaves.taken) : 0} jours</div>
                   </div>
                   <div className="bg-white dark:bg-gray-800 p-4 rounded-lg border">
                     <div className="text-sm text-muted-foreground">Congés pris</div>
@@ -1025,23 +1119,27 @@ const EmployeeDashboard = () => {
                 <TabsTrigger value="certificates">Attestations</TabsTrigger>
               </TabsList>
               <TabsContent value="payslips">
+                {documents.length === 0 ? (
+                  <div className="text-center py-8 text-gray-500">Aucun document disponible</div>
+                ) : (
                 <div className="space-y-4">
-                  {mockDocuments.map((doc) => (
-                    <div key={doc.name} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
+                    {documents.map((doc, idx) => (
+                      <div key={doc.id || doc.name || idx} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
                       <div className="flex items-center space-x-4">
                         <FileSpreadsheet className="h-8 w-8 text-benin-green" />
                         <div>
-                          <h4 className="font-medium">{doc.name}</h4>
-                          <p className="text-sm text-gray-500">{doc.date}</p>
+                            <h4 className="font-medium">{doc.name || 'Document'}</h4>
+                            <p className="text-sm text-gray-500">{doc.date || ''}</p>
                         </div>
                       </div>
-                      <Button variant="outline" size="sm" onClick={() => handleDownloadPayslip(doc)}>
+                        <Button variant="outline" size="sm" onClick={() => handleDownloadDocument(doc)}>
                         <Download className="mr-2 h-4 w-4" />
                         Télécharger
                       </Button>
                     </div>
                   ))}
                 </div>
+                )}
               </TabsContent>
               <TabsContent value="contracts">
                 <div className="text-center py-8">
@@ -1128,28 +1226,32 @@ const EmployeeDashboard = () => {
       <Dialog open={showDocumentDetails} onOpenChange={setShowDocumentDetails}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>{selectedDocument?.name}</DialogTitle>
+            <DialogTitle>{selectedDocument?.name || 'Document'}</DialogTitle>
             <DialogDescription>
               Détails du document
             </DialogDescription>
           </DialogHeader>
+          {selectedDocument ? (
           <div className="grid gap-4 py-4">
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Type de document</Label>
-                <p className="font-medium">{selectedDocument?.type}</p>
+                  <p className="font-medium">{selectedDocument.type || 'N/A'}</p>
               </div>
               <div>
                 <Label>Date d'émission</Label>
-                <p className="font-medium">{selectedDocument && formatDate(selectedDocument.date)}</p>
+                  <p className="font-medium">{selectedDocument.date ? formatDate(selectedDocument.date) : 'N/A'}</p>
               </div>
             </div>
           </div>
+          ) : (
+            <div className="text-center text-gray-500 py-8">Aucun document sélectionné</div>
+          )}
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowDocumentDetails(false)}>
               Fermer
             </Button>
-            <Button onClick={() => selectedDocument && handleDownloadDocument(selectedDocument)}>
+            <Button onClick={() => selectedDocument && handleDownloadDocument(selectedDocument)} disabled={!selectedDocument}>
               <Download className="mr-2 h-4 w-4" />
               Télécharger
             </Button>
@@ -1167,9 +1269,10 @@ const EmployeeDashboard = () => {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
-            {employee?.notifications.map((notification) => (
+            {employee?.notifications && employee.notifications.length > 0 ? (
+              employee.notifications.map((notification, idx) => (
               <div 
-                key={notification.id}
+                  key={notification.id || idx}
                 className={`p-4 rounded-lg border ${
                   notification.read ? 'bg-gray-50 dark:bg-gray-800' : 'bg-white dark:bg-gray-900'
                 }`}
@@ -1185,9 +1288,9 @@ const EmployeeDashboard = () => {
                       <Bell className="h-4 w-4" />
                     </div>
                     <div>
-                      <p className="font-medium">{notification.message}</p>
+                        <p className="font-medium">{notification.message || 'Notification'}</p>
                       <p className="text-sm text-muted-foreground mt-1">
-                        {formatDate(notification.date)}
+                          {notification.date ? formatDate(notification.date) : 'N/A'}
                       </p>
                     </div>
                   </div>
@@ -1202,7 +1305,10 @@ const EmployeeDashboard = () => {
                   )}
                 </div>
               </div>
-            ))}
+              ))
+            ) : (
+              <div className="text-center text-gray-500 py-8">Aucune notification</div>
+            )}
           </div>
         </DialogContent>
       </Dialog>
