@@ -18,7 +18,7 @@ import { toast } from "sonner";
 import { useCountry } from "@/hooks/use-country.tsx";
 import { useState } from "react";
 import { authService } from "@/services/auth";
-import { useAuthStore } from "@/stores/authSore";
+import { useAuthStore } from "@/stores/authStore";
 
 const loginSchema = z.object({
   email: z.string().email("Email invalide"),

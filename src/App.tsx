@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/hooks/use-theme";
 import { CountryProvider } from "@/hooks/use-country";
 import { useState, useEffect } from "react";
 import Loader from "@/components/ui/loader";
+import ProtectedRoute from "./components/auth/ProtectedRoute";
 
 // Importez votre composant Chatbot ici
 import Chatbot from "./components/Chatbot"; 
@@ -24,6 +25,7 @@ import Dashboard from "./pages/Dashboard";
 import EmployeeDashboard from "./pages/EmployeeDashboard";
 import EnterpriseDashboard from "./pages/EnterpriseDashboard";
 import NotFound from "./pages/NotFound";
+import Profile from "./pages/Profile";
 
 // Ajoutez les imports pour les pages About et Contact
 import About from "./pages/About";    // Assurez-vous que ce fichier existe
@@ -65,19 +67,46 @@ const App = () => {
                 <Route path="/register" element={<Register />} />
                 <Route path="/resources" element={<Resources />} />
                 <Route path="/country-selection" element={<CountrySelection />} />
-                <Route path="/dashboard" element={<Dashboard />} />
-                <Route path="/employee-dashboard" element={<EmployeeDashboard />} />
-                <Route path="/enterprise-dashboard" element={<EnterpriseDashboard />} />
-                
-                {/* NOUVELLES ROUTES AJOUTÉES POUR /about ET /contact */}
                 <Route path="/about" element={<About />} />
                 <Route path="/contact" element={<Contact />} />
                 
-                {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
+                {/* Routes protégées */}
+                <Route 
+                  path="/profile" 
+                  element={
+                    <ProtectedRoute allowedRoles={['client', 'entreprise']}>
+                      <Profile />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/dashboard" 
+                  element={
+                    <ProtectedRoute allowedRoles={['client']}>
+                      <Dashboard />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/employee-dashboard" 
+                  element={
+                    <ProtectedRoute allowedRoles={['client']}>
+                      <EmployeeDashboard />
+                    </ProtectedRoute>
+                  } 
+                />
+                <Route 
+                  path="/enterprise-dashboard" 
+                  element={
+                    <ProtectedRoute allowedRoles={['entreprise']}>
+                      <EnterpriseDashboard />
+                    </ProtectedRoute>
+                  } 
+                />
+                
                 <Route path="*" element={<NotFound />} />
               </Routes>
             </BrowserRouter>
-            {/* PLACEZ LE COMPOSANT CHATBOT ICI */}
             <Chatbot />
           </TooltipProvider>
         </CountryProvider>

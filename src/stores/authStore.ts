@@ -20,6 +20,7 @@ type AuthState = {
   register: (userData: Omit<User, 'id'>) => Promise<void>;
   login: (email: string, password: string) => Promise<void>;
   logout: () => void;
+  updateUser: (updatedUser: User) => void;
 };
 
 export const useAuthStore = create<AuthState>()(
@@ -77,6 +78,18 @@ export const useAuthStore = create<AuthState>()(
           user: null,
           token: null,
           isAuthenticated: false
+        });
+      },
+
+      updateUser: (updatedUser) => {
+        const { users } = get();
+        const updatedUsers = users.map(u => 
+          u.id === updatedUser.id ? updatedUser : u
+        );
+        
+        set({
+          users: updatedUsers,
+          user: updatedUser
         });
       }
     }),

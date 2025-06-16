@@ -1,76 +1,64 @@
 import React from 'react';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { Department } from '@/types/payroll';
+
+interface Department {
+  id: string;
+  name: string;
+  budget: number;
+  headcount: number;
+}
 
 interface DepartmentDetailsModalProps {
   isOpen: boolean;
+  department: Department;
   onClose: () => void;
-  department: Department | null;
+  onEdit: (department: Department) => void;
+  employeeCount: number;
+  totalSalary: number;
 }
 
-const DepartmentDetailsModal: React.FC<DepartmentDetailsModalProps> = ({
+export const DepartmentDetailsModal: React.FC<DepartmentDetailsModalProps> = ({
   isOpen,
+  department,
   onClose,
-  department
+  onEdit,
+  employeeCount,
+  totalSalary
 }) => {
-  if (!department) return null;
+  if (!isOpen) return null;
 
   return (
-    <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="sm:max-w-[600px]">
-        <DialogHeader>
-          <DialogTitle>Détails du département</DialogTitle>
-          <DialogDescription>
-            Informations détaillées sur le département {department.name}
-          </DialogDescription>
-        </DialogHeader>
-
-        <div className="space-y-4 py-4">
-          <div className="space-y-2">
-            <h3 className="text-lg font-semibold">Informations générales</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Nom du département</p>
-                <p className="font-medium">{department.name}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Code</p>
-                <p className="font-medium">{department.code}</p>
-              </div>
-            </div>
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+      <div className="bg-white p-6 rounded-lg w-full max-w-2xl">
+        <h2 className="text-xl font-bold mb-4">Détails du département {department.name}</h2>
+        <div className="space-y-4">
+          <div>
+            <h3 className="font-semibold">Budget</h3>
+            <p>{department.budget.toLocaleString()} FCFA</p>
           </div>
-
-          <div className="space-y-2">
-            <h3 className="text-lg font-semibold">Statistiques</h3>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm text-muted-foreground">Nombre d'employés</p>
-                <p className="font-medium">{department.employeeCount || 0}</p>
-              </div>
-              <div>
-                <p className="text-sm text-muted-foreground">Budget mensuel</p>
-                <p className="font-medium">
-                  {new Intl.NumberFormat('fr-FR', {
-                    style: 'currency',
-                    currency: 'XOF',
-                    minimumFractionDigits: 0,
-                    maximumFractionDigits: 0
-                  }).format(department.monthlyBudget || 0)}
-                </p>
-              </div>
-            </div>
+          <div>
+            <h3 className="font-semibold">Effectif</h3>
+            <p>{employeeCount} employés</p>
           </div>
-
-          {department.description && (
-            <div className="space-y-2">
-              <h3 className="text-lg font-semibold">Description</h3>
-              <p className="text-sm text-muted-foreground">{department.description}</p>
-            </div>
-          )}
+          <div>
+            <h3 className="font-semibold">Masse salariale</h3>
+            <p>{totalSalary.toLocaleString()} FCFA</p>
+          </div>
         </div>
-      </DialogContent>
-    </Dialog>
+        <div className="mt-6 flex justify-end space-x-4">
+          <button
+            onClick={() => onEdit(department)}
+            className="px-4 py-2 bg-blue-500 text-white rounded hover:bg-blue-600"
+          >
+            Modifier
+          </button>
+          <button
+            onClick={onClose}
+            className="px-4 py-2 bg-gray-200 rounded hover:bg-gray-300"
+          >
+            Fermer
+          </button>
+        </div>
+      </div>
+    </div>
   );
-};
-
-export default DepartmentDetailsModal; 
+}; 

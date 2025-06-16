@@ -1,24 +1,23 @@
 import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '@/hooks/use-auth';
+import { useAuthStore } from '@/stores/authStore';
 
 interface ProtectedRouteProps {
   children: React.ReactNode;
+  allowedRoles?: ('client' | 'entreprise')[];
 }
 
-const ProtectedRoute: React.FC<ProtectedRouteProps> = ({ children }) => {
-  const { isAuthenticated, isLoading } = useAuth();
+const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
+  const { isAuthenticated, user } = useAuthStore();
   const location = useLocation();
 
-  if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-benin-green"></div>
-      </div>
-    );
+  if (!isAuthenticated) {
+    // Rediriger vers la page de connexion en sauvegardant l'URL actuelle
+    return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  if (!isAuthenticated) {
-    return <Navigate to="/login" state={{ from: location }} replace />;
+  if (allowedRoles && user && !allowedRoles.includes(user.role)) {
+    // Rediriger vers la page d'accueil si l'utilisateur n'a pas le rôle requis
+    return <Navigate to="/" replace />;
   }
 
   return <>{children}</>;

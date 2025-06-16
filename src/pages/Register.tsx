@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useCountry } from "@/hooks/use-country.tsx";
-import { useAuthStore } from "@/stores/authSore";
+import { useAuthStore } from "@/stores/authStore";
 
 // Validation schemas
 const step1Schema = z
@@ -53,6 +53,8 @@ type RegisterFormValues = {
 const Register = () => {
   const { country } = useCountry();
   const navigate = useNavigate();
+  const isAuthenticated = useAuthStore((state) => state.isAuthenticated);
+  const user = useAuthStore((state) => state.user);
   const [step, setStep] = useState<number>(1);
   const [accountType, setAccountType] = useState<"individual" | "company">("individual");
   const [isLoading, setIsLoading] = useState(false);
@@ -161,6 +163,12 @@ const Register = () => {
               {country === "benin" ? "Bénin" : "Togo"}
             </p>
           </div>
+
+          {isAuthenticated && (
+            <div className="bg-yellow-100 text-yellow-800 p-3 rounded text-center text-sm font-medium">
+              Vous êtes déjà connecté{user?.email ? ` en tant que ${user.email}` : ''}. Vous pouvez tout de même créer un nouveau compte.
+            </div>
+          )}
 
           <div className="flex items-center gap-2 justify-center">
             {[1, 2, 3].map((i) => (
