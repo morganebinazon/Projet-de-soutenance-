@@ -15,228 +15,7 @@ import { useCountry } from "@/hooks/use-country.tsx";
 import { toast } from "@/components/ui/use-toast";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
-
-// **Constantes de calcul pour le Bénin**
-const BENIN = {
-  CNSS_EMPLOYE: 0.036, // 3.6%
-  CNSS_PATRONAL: 0.064, // 6.4%
-  PRESTATIONS_FAMILIALES: 0.09, // 9%
-  VERSEMENT_PATRONAL: 0.04, // 4%
-  RISQUE_PROFESSIONNEL: 0.02, // 2% (moyenne)
-  FRAIS_PRO_TAUX: 0.20, // 20%
-  FRAIS_PRO_PLAFOND: 50000,
-  
-  // Barème ITS (Impôt sur les Traitements et Salaires)
-  ITS_TRANCHES: [
-    { min: 0, max: 50000, taux: 0 },
-    { min: 50001, max: 130000, taux: 0.10 },
-    { min: 130001, max: 280000, taux: 0.15 },
-    { min: 280001, max: 580000, taux: 0.20 },
-    { min: 580001, max: Infinity, taux: 0.25 }
-  ],
-  
-  QUOTIENT_FAMILIAL: {
-    single: 1,
-    married: 1.5,
-    divorced: 1,
-    widowed: 1.5
-  },
-  
-  ENFANT_SUPPLEMENT: 0.5
-};
-
-// **Constantes de calcul pour le Togo**
-const TOGO = {
-  CNSS_EMPLOYE: 0.09, // 9% (nouveau taux 2024)
-  CNSS_PATRONAL: 0.215, // 21.5% (nouveau taux 2024)
-  FRAIS_PRO_TAUX: 0.20,
-  FRAIS_PRO_PLAFOND: 50000,
-  
-  // Barème IRPP
-  IRPP_TRANCHES: [
-    { min: 0, max: 50000, taux: 0 },
-    { min: 50001, max: 130000, taux: 0.05 },
-    { min: 130001, max: 280000, taux: 0.10 },
-    { min: 280001, max: 580000, taux: 0.15 },
-    { min: 580001, max: 1000000, taux: 0.20 },
-    { min: 1000001, max: Infinity, taux: 0.25 }
-  ],
-  
-  QUOTIENT_FAMILIAL: {
-    single: 1,
-    married: 1.5,
-    divorced: 1,
-    widowed: 1.5
-  },
-  
-  ENFANT_SUPPLEMENT: 0.5
-};
-
-// **Fonctions de calcul pour le Bénin**
-const calculateBeninSalary = (salaireBrut: number, familyStatus: string, children: string, transportBonus: number = 0, housingBonus: number = 0) => {
-  const totalBrut = salaireBrut + transportBonus + housingBonus;
-  
-  // CNSS employé
-  const cnssEmploye = Math.round(totalBrut * BENIN.CNSS_EMPLOYE);
-  
-  // Frais professionnels
-  const baseApresCharges = totalBrut - cnssEmploye;
-  const fraisPro = Math.min(baseApresCharges * BENIN.FRAIS_PRO_TAUX, BENIN.FRAIS_PRO_PLAFOND);
-  
-  // Base imposable
-  const baseImposable = baseApresCharges - fraisPro;
-  
-  // Quotient familial
-  const childrenCount = parseInt(children) || 0;
-  const quotientFamilial = BENIN.QUOTIENT_FAMILIAL[familyStatus as keyof typeof BENIN.QUOTIENT_FAMILIAL] + (childrenCount * BENIN.ENFANT_SUPPLEMENT);
-  
-  // Calcul ITS par tranches
-  const baseParPart = baseImposable / quotientFamilial;
-  let itsParPart = 0;
-  const itsDetails: any[] = [];
-  
-  for (const tranche of BENIN.ITS_TRANCHES) {
-    if (baseParPart > tranche.min) {
-      const montantTranche = Math.min(baseParPart, tranche.max) - tranche.min + 1;
-      const itsTranche = montantTranche * tranche.taux;
-      itsParPart += itsTranche;
-      
-      if (montantTranche > 0) {
-        itsDetails.push({
-          tranche: `${tranche.min.toLocaleString()} - ${tranche.max === Infinity ? '∞' : tranche.max.toLocaleString()}`,
-          taux: tranche.taux * 100,
-          base: Math.round(montantTranche),
-          impot: Math.round(itsTranche)
-        });
-      }
-    }
-  }
-  
-  const itsTotal = Math.round(itsParPart * quotientFamilial);
-  
-  // Salaire net
-  const salaireNet = totalBrut - cnssEmploye - itsTotal;
-  
-  // Charges patronales
-  const cnssPatronal = Math.round(totalBrut * BENIN.CNSS_PATRONAL);
-  const prestationsFamiliales = Math.round(totalBrut * BENIN.PRESTATIONS_FAMILIALES);
-  const versementPatronal = Math.round(totalBrut * BENIN.VERSEMENT_PATRONAL);
-  const risqueProfessionnel = Math.round(totalBrut * BENIN.RISQUE_PROFESSIONNEL);
-  const chargesPatronales = cnssPatronal + prestationsFamiliales + versementPatronal + risqueProfessionnel;
-  
-  return {
-    salaireBrut,
-    totalBrut,
-    salaireNet,
-    cnssEmploye,
-    fraisPro,
-    baseImposable,
-    itsTotal,
-    itsDetails,
-    quotientFamilial,
-    chargesPatronales,
-    coutTotal: totalBrut + chargesPatronales,
-    tauxPrelevement: ((cnssEmploye + itsTotal) / totalBrut) * 100,
-    tauxNet: (salaireNet / totalBrut) * 100,
-    detailsChargesPatronales: {
-      cnssPatronal,
-      prestationsFamiliales,
-      versementPatronal,
-      risqueProfessionnel
-    },
-    avantages: { transport: transportBonus, logement: housingBonus }
-  };
-};
-
-// **Fonctions de calcul pour le Togo**
-const calculateTogoSalary = (salaireBrut: number, familyStatus: string, children: string, transportBonus: number = 0, housingBonus: number = 0) => {
-  const totalBrut = salaireBrut + transportBonus + housingBonus;
-  
-  // CNSS employé (nouveau taux 9%)
-  const cnssEmploye = Math.round(totalBrut * TOGO.CNSS_EMPLOYE);
-  
-  // Frais professionnels
-  const baseApresCharges = totalBrut - cnssEmploye;
-  const fraisPro = Math.min(baseApresCharges * TOGO.FRAIS_PRO_TAUX, TOGO.FRAIS_PRO_PLAFOND);
-  
-  // Base imposable
-  const baseImposable = baseApresCharges - fraisPro;
-  
-  // Quotient familial
-  const childrenCount = parseInt(children) || 0;
-  const quotientFamilial = TOGO.QUOTIENT_FAMILIAL[familyStatus as keyof typeof TOGO.QUOTIENT_FAMILIAL] + (childrenCount * TOGO.ENFANT_SUPPLEMENT);
-  
-  // Calcul IRPP par tranches
-  const baseParPart = baseImposable / quotientFamilial;
-  let irppParPart = 0;
-  const irppDetails: any[] = [];
-  
-  for (const tranche of TOGO.IRPP_TRANCHES) {
-    if (baseParPart > tranche.min) {
-      const montantTranche = Math.min(baseParPart, tranche.max) - tranche.min + 1;
-      const irppTranche = montantTranche * tranche.taux;
-      irppParPart += irppTranche;
-      
-      if (montantTranche > 0) {
-        irppDetails.push({
-          tranche: `${tranche.min.toLocaleString()} - ${tranche.max === Infinity ? '∞' : tranche.max.toLocaleString()}`,
-          taux: tranche.taux * 100,
-          base: Math.round(montantTranche),
-          impot: Math.round(irppTranche)
-        });
-      }
-    }
-  }
-  
-  const irppTotal = Math.round(irppParPart * quotientFamilial);
-  
-  // Salaire net
-  const salaireNet = totalBrut - cnssEmploye - irppTotal;
-  
-  // Charges patronales (nouveau taux 21.5%)
-  const chargesPatronales = Math.round(totalBrut * TOGO.CNSS_PATRONAL);
-  
-  return {
-    salaireBrut,
-    totalBrut,
-    salaireNet,
-    cnssEmploye,
-    fraisPro,
-    baseImposable,
-    irppTotal,
-    irppDetails,
-    quotientFamilial,
-    chargesPatronales,
-    coutTotal: totalBrut + chargesPatronales,
-    tauxPrelevement: ((cnssEmploye + irppTotal) / totalBrut) * 100,
-    tauxNet: (salaireNet / totalBrut) * 100,
-    avantages: { transport: transportBonus, logement: housingBonus }
-  };
-};
-
-// **Calcul Net vers Brut**
-const calculateNetToBrut = (netSouhaite: number, familyStatus: string, children: string, country: string): number => {
-  let salaireBrut = netSouhaite * (country === 'benin' ? 1.4 : 1.5);
-  let iterations = 0;
-  const maxIterations = 100;
-  const precision = 1;
-  
-  while (iterations < maxIterations) {
-    const result = country === 'benin' 
-      ? calculateBeninSalary(salaireBrut, familyStatus, children)
-      : calculateTogoSalary(salaireBrut, familyStatus, children);
-    
-    if (Math.abs(result.salaireNet - netSouhaite) <= precision) {
-      return Math.round(salaireBrut);
-    }
-    
-    const ecart = netSouhaite - result.salaireNet;
-    salaireBrut += ecart * 1.3;
-    iterations++;
-  }
-  
-  return Math.round(salaireBrut);
-};
+import { calculateBeninSalary, calculateTogoSalary, calculateBeninNetToBrut, calculateTogoNetToBrut, SalaryResult, FamilyStatus } from '@/lib/salary-calculator';
 
 const SimulationEmployee = () => {
   const navigate = useNavigate();
@@ -244,13 +23,13 @@ const SimulationEmployee = () => {
   const [simulationType, setSimulationType] = useState("gross-to-net");
   const [grossSalary, setGrossSalary] = useState<number>(350000);
   const [netSalary, setNetSalary] = useState<string>("250000");
-  const [familyStatus, setFamilyStatus] = useState("single");
+  const [familyStatus, setFamilyStatus] = useState<FamilyStatus>("single");
   const [children, setChildren] = useState("0");
   const [transportBonus, setTransportBonus] = useState<number>(0);
   const [housingBonus, setHousingBonus] = useState<number>(0);
   const [thirteenthMonth, setThirteenthMonth] = useState(false);
   const [showResults, setShowResults] = useState(false);
-  const [results, setResults] = useState<any>(null);
+  const [results, setResults] = useState<SalaryResult | null>(null);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('fr-FR', {
@@ -273,10 +52,24 @@ const SimulationEmployee = () => {
       }
 
       const result = country === 'benin' 
-        ? calculateBeninSalary(grossSalary, familyStatus, children, transportBonus, housingBonus)
-        : calculateTogoSalary(grossSalary, familyStatus, children, transportBonus, housingBonus);
+        ? calculateBeninSalary({
+            salaireBrut: grossSalary,
+            familyStatus: familyStatus as FamilyStatus,
+            children,
+            transportBonus,
+            housingBonus,
+            thirteenthMonth
+          })
+        : calculateTogoSalary({
+            salaireBrut: grossSalary,
+            familyStatus: familyStatus as FamilyStatus,
+            children,
+            transportBonus,
+            housingBonus,
+            thirteenthMonth
+          });
       
-      setResults({ ...result, country, simulationType });
+      setResults(result);
       setShowResults(true);
     } else {
       if (!netSalary || parseFloat(netSalary) <= 0) {
@@ -288,12 +81,29 @@ const SimulationEmployee = () => {
         return;
       }
 
-      const brutCalcule = calculateNetToBrut(parseFloat(netSalary), familyStatus, children, country);
+      const brutCalcule = country === 'benin'
+        ? calculateBeninNetToBrut(parseFloat(netSalary), familyStatus as FamilyStatus, children, transportBonus, housingBonus)
+        : calculateTogoNetToBrut(parseFloat(netSalary), familyStatus as FamilyStatus, children, transportBonus, housingBonus);
+
       const result = country === 'benin' 
-        ? calculateBeninSalary(brutCalcule, familyStatus, children, transportBonus, housingBonus)
-        : calculateTogoSalary(brutCalcule, familyStatus, children, transportBonus, housingBonus);
+        ? calculateBeninSalary({
+            salaireBrut: brutCalcule,
+            familyStatus: familyStatus as FamilyStatus,
+            children,
+            transportBonus,
+            housingBonus,
+            thirteenthMonth
+          })
+        : calculateTogoSalary({
+            salaireBrut: brutCalcule,
+            familyStatus: familyStatus as FamilyStatus,
+            children,
+            transportBonus,
+            housingBonus,
+            thirteenthMonth
+          });
       
-      setResults({ ...result, country, simulationType });
+      setResults(result);
       setShowResults(true);
     }
   };
@@ -371,7 +181,7 @@ const SimulationEmployee = () => {
               </div>
               <div style="border-bottom: 1px solid #eee; padding: 12px; display: flex; justify-content: space-between;">
                 <span>${country === 'benin' ? 'ITS' : 'IRPP'}</span>
-                <span style="color: #dc2626; font-weight: 500;">-${formatCurrency(country === 'benin' ? results.itsTotal : results.irppTotal)}</span>
+                <span style="color: #dc2626; font-weight: 500;">-${formatCurrency(results.impots)}</span>
               </div>
               <div style="padding: 12px; background: #f0fdf4; display: flex; justify-content: space-between;">
                 <span style="font-weight: bold;">Salaire net mensuel</span>
@@ -517,7 +327,7 @@ const SimulationEmployee = () => {
                         <div className="space-y-4">
                           <div>
                             <Label htmlFor="family-status">Situation familiale</Label>
-                            <Select value={familyStatus} onValueChange={setFamilyStatus}>
+                            <Select value={familyStatus} onValueChange={(value: FamilyStatus) => setFamilyStatus(value)}>
                               <SelectTrigger className="mt-1">
                                 <SelectValue placeholder="Sélectionner" />
                               </SelectTrigger>
@@ -591,7 +401,7 @@ const SimulationEmployee = () => {
                               <Checkbox 
                                 id="thirteenth-month" 
                                 checked={thirteenthMonth}
-                                onCheckedChange={setThirteenthMonth}
+                                onCheckedChange={(checked) => setThirteenthMonth(checked === true)}
                               />
                               <label htmlFor="thirteenth-month" className="ml-2 text-sm">
                                 13ème mois
@@ -647,8 +457,8 @@ const SimulationEmployee = () => {
                                     <span>- {formatCurrency(results.cnssEmploye)}</span>
                                   </div>
                                   <div className="flex justify-between text-sm text-red-500">
-                                    <span>{country === 'benin' ? 'ITS' : 'IRPP'}</span>
-                                    <span>- {formatCurrency(country === 'benin' ? results.itsTotal : results.irppTotal)}</span>
+                                    <span>${country === 'benin' ? 'ITS' : 'IRPP'}</span>
+                                    <span>- {formatCurrency(results.impots)}</span>
                                   </div>
                                   <Separator className="my-2" />
                                   <div className="flex justify-between font-medium">
@@ -718,7 +528,7 @@ const SimulationEmployee = () => {
                                       <span>Calcul par tranches:</span>
                                     </div>
                                     <div className="mt-2 space-y-1">
-                                      {(country === 'benin' ? results.itsDetails : results.irppDetails).map((tranche: any, index: number) => (
+                                      {results.impotsDetails.map((tranche: any, index: number) => (
                                         <div key={index} className="flex justify-between">
                                           <span>Tranche {tranche.taux}% ({tranche.tranche})</span>
                                           <span>{formatCurrency(tranche.impot)}</span>
@@ -731,7 +541,7 @@ const SimulationEmployee = () => {
                                   
                                   <div className="flex justify-between">
                                     <span>Total {country === 'benin' ? 'ITS' : 'IRPP'} mensuel</span>
-                                    <span className="font-medium">{formatCurrency(country === 'benin' ? results.itsTotal : results.irppTotal)}</span>
+                                    <span className="font-medium">{formatCurrency(results.impots)}</span>
                                   </div>
                                   
                                   <div className="flex justify-between text-xs text-muted-foreground">
@@ -851,7 +661,7 @@ const SimulationEmployee = () => {
                         <div className="space-y-4">
                           <div>
                             <Label htmlFor="family-status-net">Situation familiale</Label>
-                            <Select value={familyStatus} onValueChange={setFamilyStatus}>
+                            <Select value={familyStatus} onValueChange={(value: FamilyStatus) => setFamilyStatus(value)}>
                               <SelectTrigger className="mt-1">
                                 <SelectValue placeholder="Sélectionner" />
                               </SelectTrigger>
