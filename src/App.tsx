@@ -9,7 +9,7 @@ import { useState, useEffect } from "react";
 import Loader from "@/components/ui/loader";
 
 // Importez votre composant Chatbot ici
-import Chatbot from "./components/Chatbot"; 
+import Chatbot from "./components/Chatbot";
 
 import Index from "./pages/Index";
 import Simulation from "./pages/Simulation";
@@ -24,10 +24,13 @@ import Dashboard from "./pages/Dashboard";
 import EmployeeDashboard from "./pages/EmployeeDashboard";
 import EnterpriseDashboard from "./pages/EnterpriseDashboard";
 import NotFound from "./pages/NotFound";
+import { toast, ToastContainer } from "react-toastify";
+
 
 // Ajoutez les imports pour les pages About et Contact
 import About from "./pages/About";    // Assurez-vous que ce fichier existe
 import Contact from "./pages/Contact"; // Assurez-vous que ce fichier existe
+import { useApiStore } from "./stores/api.store";
 
 const queryClient = new QueryClient();
 
@@ -54,6 +57,8 @@ const App = () => {
           <TooltipProvider>
             <Toaster />
             <Sonner />
+            <ApiErrorHandler />
+            <ToastContainer />
             <BrowserRouter>
               <Routes>
                 <Route path="/" element={<Index />} />
@@ -68,11 +73,11 @@ const App = () => {
                 <Route path="/dashboard" element={<Dashboard />} />
                 <Route path="/employee-dashboard" element={<EmployeeDashboard />} />
                 <Route path="/enterprise-dashboard" element={<EnterpriseDashboard />} />
-                
+
                 {/* NOUVELLES ROUTES AJOUTÉES POUR /about ET /contact */}
                 <Route path="/about" element={<About />} />
                 <Route path="/contact" element={<Contact />} />
-                
+
                 {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
                 <Route path="*" element={<NotFound />} />
               </Routes>
@@ -87,3 +92,24 @@ const App = () => {
 };
 
 export default App;
+
+export const ApiErrorHandler = () => {
+  const { apiError, reset } = useApiStore();
+
+  useEffect(() => {
+    if (apiError) {
+      toast.error(apiError || "Une erreur est survenue", {
+        // duration: 5000,
+        position: "top-right",
+        style: {
+          background: "#f8d7da",
+          color: "#721c24",
+        },
+      });
+      console.error("API Error:", apiError);
+      reset();
+    }
+  }, [apiError, reset]);
+
+  return <Toaster />;
+};
