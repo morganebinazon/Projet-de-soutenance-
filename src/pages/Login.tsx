@@ -17,21 +17,40 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useCountry } from "@/hooks/use-country.tsx";
 import { useState } from "react";
-import { authService } from "@/services/auth";
 import { useAuthStore } from "@/stores/authSore";
+import { useApiMutation } from "@/hooks/use-api";
 
 const loginSchema = z.object({
   email: z.string().email("Email invalide"),
   password: z.string().min(1, "Le mot de passe est requis"),
   rememberMe: z.boolean().optional(),
 });
-
+interface LoginResponse {
+  success: boolean;
+  message?: string;
+  data?: {
+    token: string;
+    user: {
+      id: number;
+      email: string;
+      name: string;
+      role: 'client' | 'entreprise';
+      companyName?: string;
+      taxId?: string;
+    };
+  };
+}
 type LoginFormValues = z.infer<typeof loginSchema>;
 
 const Login = () => {
   const { country } = useCountry();
   const navigate = useNavigate();
-  const [isLoading, setIsLoading] = useState(false);
+  const { setUser } = useAuthStore();
+  const { mutateAsync: loginUser, isPending: isLoading } = useApiMutation<LoginResponse, {
+    email: string;
+    password: string;
+    rememberMe?: boolean;
+  }>('/login');
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -44,23 +63,34 @@ const Login = () => {
 
   const onSubmit = async (values: LoginFormValues) => {
     try {
-      setIsLoading(true);
-      await useAuthStore.getState().login(values.email, values.password);
+      // 4. Appel API via le hook useApiMutation
+      const response = await loginUser({
+        email: values.email,
+        password: values.password,
+        rememberMe: values.rememberMe
+      });
 
-      const { user } = useAuthStore.getState();
+      if (response.success && response.data) {
+        // 5. Stockage du token et mise à jour du store
+        localStorage.setItem('authToken', response.data.token);
+        setUser(response.data.user);
 
-      toast.success("Connexion réussie ! Bienvenue sur PayeAfrique.");
+        toast.success("Connexion réussie ! Bienvenue sur PayeAfrique.");
 
-      if (user?.role === "entreprise") {
-        navigate('/enterprise-dashboard');
+        // 6. Redirection selon le rôle
+        const redirectPath = response.data.user.role === 'entreprise'
+          ? '/enterprise-dashboard'
+          : '/dashboard';
+
+        navigate(redirectPath);
       } else {
-        navigate('/dashboard');
+        toast.error(response.message || "Erreur lors de la connexion");
       }
-    } catch (error: any) {
+    } catch (error) {
+      // La gestion d'erreur est déjà faite par useApiMutation via useApiStore
+      // Vous pouvez ajouter un toast personnalisé si besoin
       console.error('Erreur de connexion:', error);
-      toast.error(error.message || "Erreur lors de la connexion");
-    } finally {
-      setIsLoading(false);
+      toast.error("Une erreur est survenue lors de la connexion");
     }
   };
 

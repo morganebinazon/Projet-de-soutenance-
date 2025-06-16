@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { z } from "zod";
@@ -6,8 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useCountry } from "@/hooks/use-country.tsx";
-import { useAuthStore } from "@/stores/authSore";
-
+import { useApiMutation } from "@/hooks/use-api";
 // Validation schemas
 const step1Schema = z
   .object({
@@ -53,6 +53,7 @@ type RegisterFormValues = {
 const Register = () => {
   const { country } = useCountry();
   const navigate = useNavigate();
+  const { mutateAsync: registerUser } = useApiMutation<any, any>('/register');
   const [step, setStep] = useState<number>(1);
   const [accountType, setAccountType] = useState<"individual" | "company">("individual");
   const [isLoading, setIsLoading] = useState(false);
@@ -97,7 +98,7 @@ const Register = () => {
         newErrors[path] = err.message;
       });
       setErrors(newErrors);
-      
+
       // Focus on first error field
       const firstErrorField = Object.keys(newErrors)[0];
       if (firstErrorField) {
@@ -106,47 +107,61 @@ const Register = () => {
           errorElement?.focus();
         }, 100);
       }
-      
+
       return false;
     }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
 
     try {
       if (step === 1) {
         const isValid = await validateStep(1);
-        if (isValid) {
-          setStep(2);
-        }
+        if (isValid) setStep(2);
       } else if (step === 2) {
         setStep(3);
       } else if (step === 3) {
         const isValid = await validateStep(3);
         if (isValid) {
           const userData = {
-            name: accountType === "individual" 
-              ? `${formValues.firstName} ${formValues.lastName}` 
+            name: accountType === "individual"
+              ? `${formValues.firstName} ${formValues.lastName}`
               : formValues.companyName,
             email: formValues.email,
             password: formValues.password,
-            company: accountType === "company" ? formValues.companyName : undefined,
             phone: formValues.phone,
             country: country === "benin" ? "Bénin" : "Togo",
             role: accountType === "company" ? "entreprise" : "client",
+            ...(accountType === "individual" && {
+              firstName: formValues.firstName,
+              lastName: formValues.lastName,
+            }),
+            ...(accountType === "company" && {
+              companyName: formValues.companyName,
+              taxId: formValues.taxId,
+            }),
           };
 
-          await useAuthStore.getState().register(userData);
-          toast.success("Inscription réussie !");
-          navigate("/login");
+          // Appel API via le hook useApiMutation
+          const response = await registerUser(userData);
+
+          if (response.success) {
+            toast.success("Inscription réussie !");
+            // Stocker le token si présent dans la réponse
+            if (response.data?.token) {
+              localStorage.setItem('authToken', response.data.token);
+            }
+            navigate("/login");
+          } else {
+            toast.error(response.message || "Erreur lors de l'inscription");
+          }
         }
       }
     } catch (error: any) {
+      // La gestion d'erreur est déjà faite par useApiMutation via useApiStore
+      // Vous pouvez ajouter un toast personnalisé si besoin
       toast.error(error.message || "Une erreur est survenue");
-    } finally {
-      setIsLoading(false);
     }
   };
 
