@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import Layout from "@/components/layout/Layout";
@@ -26,27 +27,25 @@ import {
   ResponsiveContainer
 } from "recharts";
 import {
-  ArrowLeft,
   Calculator,
   Calendar,
   ChartBar,
   Download,
   Eye,
-  FileText,
-  Mail,
-  Plus,
-  Search,
   Settings,
   TrendingUp,
   User as UserIcon,
   History,
   Target,
   Award,
-  Building,
   Trash2,
-  Edit,
   Share2,
-  Camera
+  Camera,
+  Wallet,
+  Banknote,
+  PieChart as PieChartIcon,
+  Search,
+  Building
 } from "lucide-react";
 import { useCountry } from "@/hooks/use-country";
 import { useAuthStore } from "@/stores/authStore";
@@ -66,15 +65,17 @@ const salaryTrendsData = [
   { month: "Jun", simulations: 4, avgNet: 285000 }
 ];
 
-const countryDistribution = [
-  { name: "Bénin", value: 60, color: "#16a34a" },
-  { name: "Togo", value: 40, color: "#059669" }
+const taxDistribution = [
+  { name: "Impôt sur le revenu", value: 35, color: "#ef4444" },
+  { name: "CNSS", value: 25, color: "#f97316" },
+  { name: "Autres taxes", value: 15, color: "#f59e0b" },
+  { name: "Salaire net", value: 25, color: "#10b981" }
 ];
 
 const Dashboard = () => {
   const navigate = useNavigate();
   const { country } = useCountry();
-  const { user, updateUser } = useAuthStore();
+  const { user, isAuthenticated, updateUser } = useAuthStore();
   const { simulations: simulationHistory, removeSimulation, clearOldSimulations } = useSimulationStore();
   const [selectedSimulation, setSelectedSimulation] = useState<any>(null);
   const [showSimulationDetails, setShowSimulationDetails] = useState(false);
@@ -87,7 +88,7 @@ const Dashboard = () => {
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Charger les préférences au démarrage
+  // Charger les préférences et l'image de profil
   useEffect(() => {
     const savedPreferences = localStorage.getItem('userPreferences');
     if (savedPreferences) {
@@ -96,16 +97,13 @@ const Dashboard = () => {
       setDefaultFamilyStatus(preferences.defaultFamilyStatus || "single");
       setAutoSave(preferences.autoSave ?? true);
     }
-    // Nettoyer les anciennes simulations
-    clearOldSimulations();
-  }, [country, clearOldSimulations]);
 
-  // Charger l'image de profil au montage du composant
-  useEffect(() => {
     if (user?.profileImage) {
       setProfileImage(user.profileImage);
     }
-  }, [user?.profileImage]);
+
+    clearOldSimulations();
+  }, [country, clearOldSimulations, user]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('fr-FR', {
@@ -126,18 +124,22 @@ const Dashboard = () => {
 
   // Filtrer les simulations
   const filteredSimulations = simulationHistory.filter(sim => {
-    const matchesSearch = sim.salaireBrut.toString().includes(searchTerm) || 
-                         sim.salaireNet.toString().includes(searchTerm);
+    const matchesSearch = sim.salaireBrut.toString().includes(searchTerm) ||
+      sim.salaireNet.toString().includes(searchTerm);
     const matchesCountry = filterCountry === "all" || sim.country === filterCountry;
     const matchesType = filterType === "all" || sim.type === filterType;
-    
+
     return matchesSearch && matchesCountry && matchesType;
   });
 
   // Statistiques calculées
   const totalSimulations = simulationHistory.length;
-  const avgSalaireBrut = Math.round(simulationHistory.reduce((sum, sim) => sum + sim.salaireBrut, 0) / totalSimulations);
-  const avgSalaireNet = Math.round(simulationHistory.reduce((sum, sim) => sum + sim.salaireNet, 0) / totalSimulations);
+  const avgSalaireBrut = totalSimulations > 0
+    ? Math.round(simulationHistory.reduce((sum, sim) => sum + sim.salaireBrut, 0) / totalSimulations)
+    : 0;
+  const avgSalaireNet = totalSimulations > 0
+    ? Math.round(simulationHistory.reduce((sum, sim) => sum + sim.salaireNet, 0) / totalSimulations)
+    : 0;
   const savedSimulations = simulationHistory.filter(sim => sim.saved).length;
 
   const handleViewSimulation = (simulation: any) => {
@@ -174,9 +176,9 @@ const Dashboard = () => {
               </div>
               <div>
                 <p style="color: #666; margin-bottom: 5px;">Situation familiale</p>
-                <p style="font-weight: 500;">${simulation.familyStatus === 'single' ? 'Célibataire' : 
-                                             simulation.familyStatus === 'married' ? 'Marié(e)' :
-                                             simulation.familyStatus === 'divorced' ? 'Divorcé(e)' : 'Veuf/Veuve'}</p>
+                <p style="font-weight: 500;">${simulation.familyStatus === 'single' ? 'Célibataire' :
+          simulation.familyStatus === 'married' ? 'Marié(e)' :
+            simulation.familyStatus === 'divorced' ? 'Divorcé(e)' : 'Veuf/Veuve'}</p>
               </div>
               <div>
                 <p style="color: #666; margin-bottom: 5px;">Nombre d'enfants</p>
@@ -280,7 +282,6 @@ Salaire net: ${formatCurrency(simulation.salaireNet)}`,
           variant: "default"
         });
       } else {
-        // Fallback pour les navigateurs qui ne supportent pas l'API Web Share
         await navigator.clipboard.writeText(shareData.text);
         toast({
           title: "Copié !",
@@ -300,57 +301,53 @@ Salaire net: ${formatCurrency(simulation.salaireNet)}`,
 
   const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
-    if (file) {
-      // Vérifier le type de fichier
-      if (!file.type.startsWith('image/')) {
-        toast({
-          title: "Erreur",
-          description: "Veuillez sélectionner une image valide",
-          variant: "destructive"
-        });
-        return;
-      }
+    if (!file) return;
 
-      // Vérifier la taille du fichier (max 5MB)
-      if (file.size > 5 * 1024 * 1024) {
-        toast({
-          title: "Erreur",
-          description: "L'image ne doit pas dépasser 5MB",
-          variant: "destructive"
-        });
-        return;
-      }
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: "Erreur",
+        description: "Veuillez sélectionner une image valide",
+        variant: "destructive"
+      });
+      return;
+    }
 
-      try {
-        // Convertir l'image en base64
-        const reader = new FileReader();
-        reader.onloadend = () => {
-          const base64String = reader.result as string;
-          setProfileImage(base64String);
-          
-          // Mettre à jour l'image dans le store
-          if (user) {
-            updateUser({
-              ...user,
-              profileImage: base64String
-            });
-          }
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "Erreur",
+        description: "L'image ne doit pas dépasser 5MB",
+        variant: "destructive"
+      });
+      return;
+    }
 
-          toast({
-            title: "Succès",
-            description: "Photo de profil mise à jour",
-            variant: "default"
+    try {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const base64String = reader.result as string;
+        setProfileImage(base64String);
+
+        if (user) {
+          updateUser({
+            ...user,
+            profileImage: base64String
           });
-        };
-        reader.readAsDataURL(file);
-      } catch (error) {
-        console.error('Erreur lors du chargement de l\'image:', error);
+        }
+
         toast({
-          title: "Erreur",
-          description: "Une erreur s'est produite lors du chargement de l'image",
-          variant: "destructive"
+          title: "Succès",
+          description: "Photo de profil mise à jour",
+          variant: "default"
         });
-      }
+      };
+      reader.readAsDataURL(file);
+    } catch (error) {
+      console.error('Erreur lors du chargement de l\'image:', error);
+      toast({
+        title: "Erreur",
+        description: "Une erreur s'est produite lors du chargement de l'image",
+        variant: "destructive"
+      });
     }
   };
 
@@ -364,9 +361,9 @@ Salaire net: ${formatCurrency(simulation.salaireNet)}`,
             <div className="relative group">
               <div className="w-20 h-20 rounded-full bg-gradient-to-br from-benin-green to-green-600 overflow-hidden flex items-center justify-center">
                 {profileImage ? (
-                  <img 
-                    src={profileImage} 
-                    alt="Photo de profil" 
+                  <img
+                    src={profileImage}
+                    alt="Photo de profil"
                     className="w-full h-full object-cover"
                   />
                 ) : (
@@ -374,16 +371,14 @@ Salaire net: ${formatCurrency(simulation.salaireNet)}`,
                 )}
               </div>
               <div className="absolute bottom-0 right-0 h-5 w-5 bg-green-500 rounded-full border-2 border-white dark:border-gray-800"></div>
-              
-              {/* Overlay pour le changement de photo */}
-              <div 
+
+              <div
                 className="absolute inset-0 rounded-full bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
                 onClick={() => fileInputRef.current?.click()}
               >
                 <Camera className="h-6 w-6 text-white" />
               </div>
-              
-              {/* Input caché pour le téléchargement de fichier */}
+
               <input
                 type="file"
                 ref={fileInputRef}
@@ -392,33 +387,50 @@ Salaire net: ${formatCurrency(simulation.salaireNet)}`,
                 onChange={handleImageUpload}
               />
             </div>
-            
+
             <h2 className="mt-4 text-xl font-bold">{user?.name || "Utilisateur"}</h2>
             <p className="text-sm text-muted-foreground">Particulier</p>
             <Badge className="mt-2 bg-benin-green" variant="secondary">
-              {country === 'benin' ? 'Bénin' : 'Togo'}
+              {user?.country || (country === 'benin' ? 'Bénin' : 'Togo')}
             </Badge>
-            
+
             <div className="w-full mt-4 pt-4 border-t">
-              <div className="text-sm text-muted-foreground">Membre depuis:</div>
-              <div className="font-medium">Juin 2025</div>
+              <div className="text-sm text-muted-foreground">Email</div>
+              <div className="font-medium truncate">{user?.email || "Non renseigné"}</div>
             </div>
-            
-            <Button 
-              className="w-full mt-4 bg-benin-green hover:bg-benin-green/90" 
+
+            {user?.phone && (
+              <div className="w-full mt-2">
+                <div className="text-sm text-muted-foreground">Téléphone</div>
+                <div className="font-medium">{user.phone}</div>
+              </div>
+            )}
+
+            <Button
+              className="w-full mt-4 bg-benin-green hover:bg-benin-green/90"
               onClick={() => navigate('/simulationparticulier')}
             >
               <Calculator className="mr-2 h-4 w-4" />
               Nouvelle simulation
             </Button>
           </div>
-          
+
           {/* Zone principale */}
           <div className="flex-1">
-            <h1 className="text-3xl font-bold mb-6">Mon Dashboard</h1>
-            
+            <h1 className="text-3xl font-bold mb-6">Mon Tableau de Bord</h1>
+
+            {/* Message de bienvenue */}
+            <div className="mb-6 p-4 bg-blue-50 dark:bg-blue-900/30 rounded-lg">
+              <h2 className="text-xl font-semibold">
+                Bienvenue, {user?.firstName || user?.name || 'Cher client'} !
+              </h2>
+              <p className="text-muted-foreground">
+                Suivez vos simulations de salaires et optimisez vos revenus
+              </p>
+            </div>
+
             {/* KPIs */}
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-lg">Total simulations</CardTitle>
@@ -432,7 +444,7 @@ Salaire net: ${formatCurrency(simulation.salaireNet)}`,
                   </div>
                 </CardContent>
               </Card>
-              
+
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-lg">Salaire brut moyen</CardTitle>
@@ -441,12 +453,12 @@ Salaire net: ${formatCurrency(simulation.salaireNet)}`,
                 <CardContent>
                   <div className="text-2xl font-bold">{formatCurrency(avgSalaireBrut)}</div>
                   <div className="flex items-center mt-1 text-xs">
-                    <TrendingUp className="h-3 w-3 mr-1 text-green-500" />
+                    <Wallet className="h-3 w-3 mr-1 text-green-500" />
                     <span className="text-green-500 font-medium">Stable</span>
                   </div>
                 </CardContent>
               </Card>
-              
+
               <Card>
                 <CardHeader className="pb-2">
                   <CardTitle className="text-lg">Salaire net moyen</CardTitle>
@@ -455,24 +467,8 @@ Salaire net: ${formatCurrency(simulation.salaireNet)}`,
                 <CardContent>
                   <div className="text-2xl font-bold">{formatCurrency(avgSalaireNet)}</div>
                   <div className="flex items-center mt-1 text-xs">
-                    <Target className="h-3 w-3 mr-1 text-blue-500" />
+                    <Banknote className="h-3 w-3 mr-1 text-blue-500" />
                     <span className="text-muted-foreground">Objectif atteint</span>
-                  </div>
-                </CardContent>
-              </Card>
-              
-              <Card>
-                <CardHeader className="pb-2">
-                  <CardTitle className="text-lg">Dernière simulation</CardTitle>
-                  <CardDescription>Activité récente</CardDescription>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-2xl font-bold">
-                    {simulationHistory.length > 0 ? formatDate(simulationHistory[0].date) : 'Aucune'}
-                  </div>
-                  <div className="flex items-center mt-1 text-xs">
-                    <Calendar className="h-3 w-3 mr-1 text-gray-500" />
-                    <span className="text-muted-foreground">Il y a 3 jours</span>
                   </div>
                 </CardContent>
               </Card>
@@ -517,31 +513,34 @@ Salaire net: ${formatCurrency(simulation.salaireNet)}`,
             </CardContent>
           </Card>
 
-          {/* Répartition par pays */}
+          {/* Répartition des taxes */}
           <Card>
             <CardHeader>
-              <CardTitle>Répartition par pays</CardTitle>
-              <CardDescription>Vos simulations par législation</CardDescription>
+              <CardTitle>Répartition des taxes</CardTitle>
+              <CardDescription>Analyse de vos prélèvements</CardDescription>
             </CardHeader>
             <CardContent>
               <div className="h-[300px]">
                 <ResponsiveContainer width="100%" height="100%">
                   <PieChart>
                     <Pie
-                      data={countryDistribution}
+                      data={taxDistribution}
                       cx="50%"
                       cy="50%"
                       labelLine={false}
-                      label={({ name, value }) => `${name}: ${value}%`}
+                      label={({ name, percent }) => `${name}: ${(percent * 100).toFixed(0)}%`}
                       outerRadius={80}
                       fill="#8884d8"
                       dataKey="value"
                     >
-                      {countryDistribution.map((entry, index) => (
+                      {taxDistribution.map((entry, index) => (
                         <Cell key={`cell-${index}`} fill={entry.color} />
                       ))}
                     </Pie>
-                    <Tooltip />
+                    <Tooltip
+                      formatter={(value: number) => [`${value}%`, "Pourcentage"]}
+                    />
+                    <Legend />
                   </PieChart>
                 </ResponsiveContainer>
               </div>
@@ -650,22 +649,22 @@ Salaire net: ${formatCurrency(simulation.salaireNet)}`,
                         </TableCell>
                         <TableCell>
                           <div className="flex space-x-2">
-                            <Button 
-                              variant="ghost" 
+                            <Button
+                              variant="ghost"
                               size="sm"
                               onClick={() => handleViewSimulation(simulation)}
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
-                            <Button 
-                              variant="ghost" 
+                            <Button
+                              variant="ghost"
                               size="sm"
                               onClick={() => handleDownloadPDF(simulation)}
                             >
                               <Download className="h-4 w-4" />
                             </Button>
-                            <Button 
-                              variant="ghost" 
+                            <Button
+                              variant="ghost"
                               size="sm"
                               onClick={() => handleDeleteSimulation(simulation.id)}
                             >
@@ -701,7 +700,7 @@ Salaire net: ${formatCurrency(simulation.salaireNet)}`,
                           {formatCurrency(
                             simulationHistory
                               .filter(s => s.country === 'benin')
-                              .reduce((sum, s) => sum + s.salaireNet, 0) / 
+                              .reduce((sum, s) => sum + s.salaireNet, 0) /
                             (simulationHistory.filter(s => s.country === 'benin').length || 1)
                           )} net moyen
                         </span>
@@ -717,7 +716,7 @@ Salaire net: ${formatCurrency(simulation.salaireNet)}`,
                           {formatCurrency(
                             simulationHistory
                               .filter(s => s.country === 'togo')
-                              .reduce((sum, s) => sum + s.salaireNet, 0) / 
+                              .reduce((sum, s) => sum + s.salaireNet, 0) /
                             (simulationHistory.filter(s => s.country === 'togo').length || 1)
                           )} net moyen
                         </span>
@@ -730,12 +729,12 @@ Salaire net: ${formatCurrency(simulation.salaireNet)}`,
                           {formatCurrency(Math.abs(
                             (simulationHistory
                               .filter(s => s.country === 'benin')
-                              .reduce((sum, s) => sum + s.salaireNet, 0) / 
-                            (simulationHistory.filter(s => s.country === 'benin').length || 1)) -
+                              .reduce((sum, s) => sum + s.salaireNet, 0) /
+                              (simulationHistory.filter(s => s.country === 'benin').length || 1)) -
                             (simulationHistory
                               .filter(s => s.country === 'togo')
-                              .reduce((sum, s) => sum + s.salaireNet, 0) / 
-                            (simulationHistory.filter(s => s.country === 'togo').length || 1))
+                              .reduce((sum, s) => sum + s.salaireNet, 0) /
+                              (simulationHistory.filter(s => s.country === 'togo').length || 1))
                           ))}
                         </span>
                         <span className="text-sm text-muted-foreground">
@@ -759,7 +758,7 @@ Salaire net: ${formatCurrency(simulation.salaireNet)}`,
                       <div>
                         <p className="font-medium text-sm">Optimisation fiscale</p>
                         <p className="text-xs text-muted-foreground">
-                          {simulationHistory.some(s => s.children > 0) 
+                          {simulationHistory.some(s => s.children > 0)
                             ? "Vous bénéficiez déjà d'avantages familiaux"
                             : "Considérez les avantages familiaux pour réduire vos impôts"}
                         </p>
@@ -770,7 +769,7 @@ Salaire net: ${formatCurrency(simulation.salaireNet)}`,
                       <div>
                         <p className="font-medium text-sm">Négociation salariale</p>
                         <p className="text-xs text-muted-foreground">
-                          {avgSalaireNet > 300000 
+                          {avgSalaireNet > 300000
                             ? "Votre profil suggère un potentiel d'augmentation"
                             : "Considérez une négociation salariale basée sur vos simulations"}
                         </p>
@@ -804,8 +803,8 @@ Salaire net: ${formatCurrency(simulation.salaireNet)}`,
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <Label>Pays par défaut</Label>
-                    <Select 
-                      value={defaultCountry} 
+                    <Select
+                      value={defaultCountry}
                       onValueChange={(value: 'benin' | 'togo') => setDefaultCountry(value)}
                     >
                       <SelectTrigger>
@@ -819,8 +818,8 @@ Salaire net: ${formatCurrency(simulation.salaireNet)}`,
                   </div>
                   <div>
                     <Label>Situation familiale</Label>
-                    <Select 
-                      value={defaultFamilyStatus} 
+                    <Select
+                      value={defaultFamilyStatus}
                       onValueChange={(value: FamilyStatus) => setDefaultFamilyStatus(value)}
                     >
                       <SelectTrigger>
@@ -838,8 +837,8 @@ Salaire net: ${formatCurrency(simulation.salaireNet)}`,
                 <div>
                   <Label>Sauvegarde automatique</Label>
                   <div className="flex items-center space-x-2 mt-2">
-                    <Checkbox 
-                      id="auto-save" 
+                    <Checkbox
+                      id="auto-save"
                       checked={autoSave}
                       onCheckedChange={(checked) => setAutoSave(checked === true)}
                     />
@@ -848,7 +847,7 @@ Salaire net: ${formatCurrency(simulation.salaireNet)}`,
                     </Label>
                   </div>
                 </div>
-                <Button 
+                <Button
                   className="bg-benin-green hover:bg-benin-green/90"
                   onClick={() => {
                     // Sauvegarder les préférences dans le localStorage
@@ -857,7 +856,7 @@ Salaire net: ${formatCurrency(simulation.salaireNet)}`,
                       defaultFamilyStatus,
                       autoSave
                     }));
-                    
+
                     toast({
                       title: "Préférences sauvegardées",
                       description: "Vos préférences ont été mises à jour avec succès",
@@ -897,9 +896,9 @@ Salaire net: ${formatCurrency(simulation.salaireNet)}`,
                   <div>
                     <Label>Situation familiale</Label>
                     <p className="font-medium">
-                      {selectedSimulation.familyStatus === 'single' ? 'Célibataire' : 
-                       selectedSimulation.familyStatus === 'married' ? 'Marié(e)' :
-                       selectedSimulation.familyStatus === 'divorced' ? 'Divorcé(e)' : 'Veuf/Veuve'}
+                      {selectedSimulation.familyStatus === 'single' ? 'Célibataire' :
+                        selectedSimulation.familyStatus === 'married' ? 'Marié(e)' :
+                          selectedSimulation.familyStatus === 'divorced' ? 'Divorcé(e)' : 'Veuf/Veuve'}
                     </p>
                   </div>
                   <div>
@@ -907,7 +906,7 @@ Salaire net: ${formatCurrency(simulation.salaireNet)}`,
                     <p className="font-medium">{selectedSimulation.children}</p>
                   </div>
                 </div>
-                
+
                 <div className="border-t pt-4">
                   <div className="grid grid-cols-2 gap-4">
                     <div className="text-center p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
@@ -922,18 +921,18 @@ Salaire net: ${formatCurrency(simulation.salaireNet)}`,
                     </div>
                   </div>
                 </div>
-                
+
                 <div className="flex gap-2 pt-4">
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="flex-1"
                     onClick={() => handleDownloadPDF(selectedSimulation)}
                   >
                     <Download className="mr-2 h-4 w-4" />
                     Télécharger PDF
                   </Button>
-                  <Button 
-                    variant="outline" 
+                  <Button
+                    variant="outline"
                     className="flex-1"
                     onClick={() => handleShareSimulation(selectedSimulation)}
                   >

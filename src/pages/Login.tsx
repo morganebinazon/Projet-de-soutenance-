@@ -17,8 +17,10 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useCountry } from "@/hooks/use-country.tsx";
 import { useState } from "react";
-import { useAuthStore } from "@/stores/authSore";
+// import { useAuthStore } from "@/stores/authSore";
 import { useApiMutation } from "@/hooks/use-api";
+import { useAuthStore } from "@/stores/authStore";
+import { authEndpoints } from "@/api/endpoints/auth";
 
 const loginSchema = z.object({
   email: z.string().email("Email invalide"),
@@ -50,7 +52,7 @@ const Login = () => {
     email: string;
     password: string;
     rememberMe?: boolean;
-  }>('/login');
+  }>(authEndpoints.login.url);
 
   const form = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -74,14 +76,9 @@ const Login = () => {
         // 5. Stockage du token et mise à jour du store
         localStorage.setItem('authToken', response.data.token);
         setAuthData(response.data.user, response.data.token);
-
+        
         toast.success("Connexion réussie ! Bienvenue sur PayeAfrique.");
-        setAuthData({
-          id: '123',
-          email: 'user@example.com',
-          name: 'John Doe',
-          role: 'client',
-        }, 'votre-jwt-token');
+     
         // 6. Redirection selon le rôle
         const redirectPath = response.data.user.role === 'entreprise'
           ? '/enterprise-dashboard'

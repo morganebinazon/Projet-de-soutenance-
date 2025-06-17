@@ -1,5 +1,5 @@
 import axios from 'axios';
-import { getCountryCode } from '@/hooks/use-country'; // Adaptez selon votre implémentation
+// import { getCountryCode } from '@/hooks/use-country'; // Adaptez selon votre implémentation
 
 const apiClient = axios.create({
   baseURL: import.meta.env.VITE_API_BASE_URL || 'https://votre-api.com/api',
@@ -11,10 +11,10 @@ const apiClient = axios.create({
 
 // Intercepteur pour ajouter le pays sélectionné
 apiClient.interceptors.request.use((config) => {
-  const countryCode = getCountryCode(); // Utilisez votre hook country
-  if (countryCode) {
-    config.headers['X-Country-Code'] = countryCode;
-  }
+  // const countryCode = getCountryCode(); // Utilisez votre hook country
+  // if (countryCode) {
+  //   config.headers['X-Country-Code'] = countryCode;
+  // }
 
   // Ajout du token d'authentification si disponible
   const token = localStorage.getItem('authToken');

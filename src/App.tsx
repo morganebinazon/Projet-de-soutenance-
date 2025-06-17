@@ -31,6 +31,7 @@ import Profile from "./pages/Profile";
 import About from "./pages/About";    // Assurez-vous que ce fichier existe
 import Contact from "./pages/Contact"; // Assurez-vous que ce fichier existe
 import { useApiStore } from "./stores/api.store";
+import { toast, ToastContainer } from 'react-toastify';
 
 const queryClient = new QueryClient();
 

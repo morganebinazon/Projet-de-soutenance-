@@ -18,7 +18,7 @@ const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const { theme, setTheme } = useTheme();
   const location = useLocation();
-  const { user, isAuthenticated, logout } = useAuthStore();
+  const { user, isAuthenticated, clearAuthData } = useAuthStore();
   const navigate = useNavigate();
 
   const toggleMenu = () => setIsMenuOpen(!isMenuOpen);
@@ -27,7 +27,7 @@ const Header = () => {
   const isActive = (path: string) => location.pathname === path;
 
   const handleLogout = () => {
-    logout();
+    clearAuthData();
     navigate('/login');
     setIsMenuOpen(false);
   };
@@ -59,8 +59,8 @@ const Header = () => {
               <Link
                 to="/simulation"
                 className={`transition-colors ${isActive("/simulation")
-                    ? "text-benin-green font-medium"
-                    : "text-gray-700 dark:text-gray-300 hover:text-benin-green dark:hover:text-benin-green"
+                  ? "text-benin-green font-medium"
+                  : "text-gray-700 dark:text-gray-300 hover:text-benin-green dark:hover:text-benin-green"
                   }`}
               >
                 Simulation
@@ -68,8 +68,8 @@ const Header = () => {
               <Link
                 to="/resources"
                 className={`transition-colors ${isActive("/resources")
-                    ? "text-benin-green font-medium"
-                    : "text-gray-700 dark:text-gray-300 hover:text-benin-green dark:hover:text-benin-green"
+                  ? "text-benin-green font-medium"
+                  : "text-gray-700 dark:text-gray-300 hover:text-benin-green dark:hover:text-benin-green"
                   }`}
               >
                 Ressources
@@ -165,8 +165,8 @@ const Header = () => {
               <Link
                 to="/simulation"
                 className={`py-2 ${isActive("/simulation")
-                    ? "text-benin-green font-medium"
-                    : "text-gray-700 dark:text-gray-300 hover:text-benin-green dark:hover:text-benin-green"
+                  ? "text-benin-green font-medium"
+                  : "text-gray-700 dark:text-gray-300 hover:text-benin-green dark:hover:text-benin-green"
                   }`}
                 onClick={() => setIsMenuOpen(false)}
               >
@@ -175,8 +175,8 @@ const Header = () => {
               <Link
                 to="/resources"
                 className={`py-2 ${isActive("/resources")
-                    ? "text-benin-green font-medium"
-                    : "text-gray-700 dark:text-gray-300 hover:text-benin-green dark:hover:text-benin-green"
+                  ? "text-benin-green font-medium"
+                  : "text-gray-700 dark:text-gray-300 hover:text-benin-green dark:hover:text-benin-green"
                   }`}
                 onClick={() => setIsMenuOpen(false)}
               >

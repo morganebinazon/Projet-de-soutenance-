@@ -1,13 +1,16 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { z } from "zod";
 import Layout from "@/components/layout/Layout";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { toast } from "sonner";
 import { useCountry } from "@/hooks/use-country.tsx";
 import { useApiMutation } from "@/hooks/use-api";
+import { useAuthStore } from "@/stores/authStore"; // Import ajouté
+import { toast } from "react-toastify";
+import { authEndpoints } from "@/api/endpoints/auth";
+
 // Validation schemas
 const step1Schema = z
   .object({
@@ -53,7 +56,8 @@ type RegisterFormValues = {
 const Register = () => {
   const { country } = useCountry();
   const navigate = useNavigate();
-  const { mutateAsync: registerUser } = useApiMutation<any, any>('/register');
+  const { mutateAsync: registerUser } = useApiMutation<any, any>(authEndpoints.register.url);
+  const { isAuthenticated, user } = useAuthStore(); // Récupération depuis le store
   const [step, setStep] = useState<number>(1);
   const [accountType, setAccountType] = useState<"individual" | "company">("individual");
   const [isLoading, setIsLoading] = useState(false);
@@ -114,6 +118,7 @@ const Register = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    setIsLoading(true);
 
     try {
       if (step === 1) {
@@ -143,15 +148,10 @@ const Register = () => {
             }),
           };
 
-          // Appel API via le hook useApiMutation
           const response = await registerUser(userData);
 
           if (response.success) {
             toast.success("Inscription réussie !");
-            // Stocker le token si présent dans la réponse
-            if (response.data?.token) {
-              localStorage.setItem('authToken', response.data.token);
-            }
             navigate("/login");
           } else {
             toast.error(response.message || "Erreur lors de l'inscription");
@@ -159,9 +159,9 @@ const Register = () => {
         }
       }
     } catch (error: any) {
-      // La gestion d'erreur est déjà faite par useApiMutation via useApiStore
-      // Vous pouvez ajouter un toast personnalisé si besoin
       toast.error(error.message || "Une erreur est survenue");
+    } finally {
+      setIsLoading(false);
     }
   };
 
