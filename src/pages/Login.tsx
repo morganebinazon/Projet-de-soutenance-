@@ -45,7 +45,7 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 const Login = () => {
   const { country } = useCountry();
   const navigate = useNavigate();
-  const { setUser } = useAuthStore();
+  const { setAuthData } = useAuthStore();
   const { mutateAsync: loginUser, isPending: isLoading } = useApiMutation<LoginResponse, {
     email: string;
     password: string;
@@ -73,10 +73,15 @@ const Login = () => {
       if (response.success && response.data) {
         // 5. Stockage du token et mise à jour du store
         localStorage.setItem('authToken', response.data.token);
-        setUser(response.data.user);
+        setAuthData(response.data.user, response.data.token);
 
         toast.success("Connexion réussie ! Bienvenue sur PayeAfrique.");
-
+        setAuthData({
+          id: '123',
+          email: 'user@example.com',
+          name: 'John Doe',
+          role: 'client',
+        }, 'votre-jwt-token');
         // 6. Redirection selon le rôle
         const redirectPath = response.data.user.role === 'entreprise'
           ? '/enterprise-dashboard'
