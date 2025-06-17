@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import Layout from "@/components/layout/Layout";
 import { Button } from "@/components/ui/button";
@@ -45,10 +45,11 @@ import {
   Building,
   Trash2,
   Edit,
-  Share2
+  Share2,
+  Camera
 } from "lucide-react";
 import { useCountry } from "@/hooks/use-country";
-import { useAuthStore } from "@/stores/authSore";
+import { useAuthStore } from "@/stores/authStore";
 import { toast } from "@/components/ui/use-toast";
 import html2canvas from "html2canvas";
 import jsPDF from "jspdf";
@@ -73,7 +74,7 @@ const countryDistribution = [
 const Dashboard = () => {
   const navigate = useNavigate();
   const { country } = useCountry();
-  const { user: currentUser } = useAuthStore();
+  const { user, updateUser } = useAuthStore();
   const { simulations: simulationHistory, removeSimulation, clearOldSimulations } = useSimulationStore();
   const [selectedSimulation, setSelectedSimulation] = useState<any>(null);
   const [showSimulationDetails, setShowSimulationDetails] = useState(false);
@@ -83,6 +84,8 @@ const Dashboard = () => {
   const [defaultCountry, setDefaultCountry] = useState(country);
   const [defaultFamilyStatus, setDefaultFamilyStatus] = useState<FamilyStatus>("single");
   const [autoSave, setAutoSave] = useState(true);
+  const [profileImage, setProfileImage] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   // Charger les préférences au démarrage
   useEffect(() => {
@@ -96,6 +99,13 @@ const Dashboard = () => {
     // Nettoyer les anciennes simulations
     clearOldSimulations();
   }, [country, clearOldSimulations]);
+
+  // Charger l'image de profil au montage du composant
+  useEffect(() => {
+    if (user?.profileImage) {
+      setProfileImage(user.profileImage);
+    }
+  }, [user?.profileImage]);
 
   const formatCurrency = (value: number) => {
     return new Intl.NumberFormat('fr-FR', {
@@ -288,6 +298,62 @@ Salaire net: ${formatCurrency(simulation.salaireNet)}`,
     }
   };
 
+  const handleImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      // Vérifier le type de fichier
+      if (!file.type.startsWith('image/')) {
+        toast({
+          title: "Erreur",
+          description: "Veuillez sélectionner une image valide",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Vérifier la taille du fichier (max 5MB)
+      if (file.size > 5 * 1024 * 1024) {
+        toast({
+          title: "Erreur",
+          description: "L'image ne doit pas dépasser 5MB",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      try {
+        // Convertir l'image en base64
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          const base64String = reader.result as string;
+          setProfileImage(base64String);
+          
+          // Mettre à jour l'image dans le store
+          if (user) {
+            updateUser({
+              ...user,
+              profileImage: base64String
+            });
+          }
+
+          toast({
+            title: "Succès",
+            description: "Photo de profil mise à jour",
+            variant: "default"
+          });
+        };
+        reader.readAsDataURL(file);
+      } catch (error) {
+        console.error('Erreur lors du chargement de l\'image:', error);
+        toast({
+          title: "Erreur",
+          description: "Une erreur s'est produite lors du chargement de l'image",
+          variant: "destructive"
+        });
+      }
+    }
+  };
+
   return (
     <Layout>
       <div className="container mx-auto px-4 py-8">
@@ -295,14 +361,39 @@ Salaire net: ${formatCurrency(simulation.salaireNet)}`,
         <div className="flex flex-col md:flex-row items-start gap-6 mb-8">
           {/* Profil utilisateur */}
           <div className="w-full md:w-64 flex flex-col items-center bg-white dark:bg-gray-800 rounded-lg p-6 shadow-sm">
-            <div className="relative">
+            <div className="relative group">
               <div className="w-20 h-20 rounded-full bg-gradient-to-br from-benin-green to-green-600 overflow-hidden flex items-center justify-center">
-                <UserIcon className="h-12 w-12 text-white" />
+                {profileImage ? (
+                  <img 
+                    src={profileImage} 
+                    alt="Photo de profil" 
+                    className="w-full h-full object-cover"
+                  />
+                ) : (
+                  <UserIcon className="h-12 w-12 text-white" />
+                )}
               </div>
               <div className="absolute bottom-0 right-0 h-5 w-5 bg-green-500 rounded-full border-2 border-white dark:border-gray-800"></div>
+              
+              {/* Overlay pour le changement de photo */}
+              <div 
+                className="absolute inset-0 rounded-full bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <Camera className="h-6 w-6 text-white" />
+              </div>
+              
+              {/* Input caché pour le téléchargement de fichier */}
+              <input
+                type="file"
+                ref={fileInputRef}
+                className="hidden"
+                accept="image/*"
+                onChange={handleImageUpload}
+              />
             </div>
             
-            <h2 className="mt-4 text-xl font-bold">{currentUser?.name || "Utilisateur"}</h2>
+            <h2 className="mt-4 text-xl font-bold">{user?.name || "Utilisateur"}</h2>
             <p className="text-sm text-muted-foreground">Particulier</p>
             <Badge className="mt-2 bg-benin-green" variant="secondary">
               {country === 'benin' ? 'Bénin' : 'Togo'}

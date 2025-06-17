@@ -12,7 +12,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { useAuthStore } from "@/stores/authSore";
+import { useAuthStore } from "@/stores/authStore";
 
 const Header = () => {
   const [isMenuOpen, setIsMenuOpen] = useState(false);

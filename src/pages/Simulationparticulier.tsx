@@ -513,7 +513,7 @@ Salaire net: ${formatCurrency(results.salaireNet)}`,
               className="mr-4"
             >
               <ArrowLeft className="h-4 w-4 mr-2" />
-              Retour au tableau de bord
+              
             </Button>
             <div>
               <h1 className="text-3xl font-bold">Simulateur de Salaire</h1>

@@ -177,6 +177,12 @@ const Register = () => {
             </p>
           </div>
 
+          {isAuthenticated && (
+            <div className="bg-yellow-100 text-yellow-800 p-3 rounded text-center text-sm font-medium">
+              Vous êtes déjà connecté{user?.email ? ` en tant que ${user.email}` : ''}. Vous pouvez tout de même créer un nouveau compte.
+            </div>
+          )}
+
           <div className="flex items-center gap-2 justify-center">
             {[1, 2, 3].map((i) => (
               <div
