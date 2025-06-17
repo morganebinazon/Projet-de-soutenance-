@@ -10,7 +10,7 @@ import Loader from "@/components/ui/loader";
 import ProtectedRoute from "./components/auth/ProtectedRoute";
 
 // Importez votre composant Chatbot ici
-import Chatbot from "./components/Chatbot"; 
+import Chatbot from "./components/Chatbot";
 
 import Index from "./pages/Index";
 import Simulation from "./pages/Simulation";
@@ -30,6 +30,8 @@ import Profile from "./pages/Profile";
 // Ajoutez les imports pour les pages About et Contact
 import About from "./pages/About";    // Assurez-vous que ce fichier existe
 import Contact from "./pages/Contact"; // Assurez-vous que ce fichier existe
+import { useApiStore } from "./stores/api.store";
+import { toast, ToastContainer } from 'react-toastify';
 
 const queryClient = new QueryClient();
 
@@ -56,6 +58,8 @@ const App = () => {
           <TooltipProvider>
             <Toaster />
             <Sonner />
+            <ApiErrorHandler />
+            <ToastContainer />
             <BrowserRouter>
               <Routes>
                 <Route path="/" element={<Index />} />
@@ -116,3 +120,24 @@ const App = () => {
 };
 
 export default App;
+
+export const ApiErrorHandler = () => {
+  const { apiError, reset } = useApiStore();
+
+  useEffect(() => {
+    if (apiError) {
+      toast.error(apiError || "Une erreur est survenue", {
+        // duration: 5000,
+        position: "top-right",
+        style: {
+          background: "#f8d7da",
+          color: "#721c24",
+        },
+      });
+      console.error("API Error:", apiError);
+      reset();
+    }
+  }, [apiError, reset]);
+
+  return <Toaster />;
+};

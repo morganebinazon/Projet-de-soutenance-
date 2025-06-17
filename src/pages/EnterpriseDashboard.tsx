@@ -33,7 +33,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from "
 import ReportModal from "@/components/modals/ReportModal";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/hooks/use-auth";
-
+import { useAuthStore } from "@/stores/authStore";
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
 const chartConfig = {
@@ -224,7 +224,8 @@ const EnterpriseDashboard = () => {
   const navigate = useNavigate();
   const { country } = useCountry();
   const { toast } = useToast();
-  const { user: authUser } = useAuth();
+  const { user, isAuthenticated, updateUser } = useAuthStore();
+
   const currencySymbol = "FCFA";
   const [selectedPeriod, setSelectedPeriod] = useState("month");
   const [searchQuery, setSearchQuery] = useState("");
@@ -275,7 +276,7 @@ const EnterpriseDashboard = () => {
 
   // État pour les paramètres de l'entreprise
   const [companySettings, setCompanySettings] = useState<CompanySettings>(initialCompanySettings);
-  const [user, setUser] = useState<User>(initialUser);
+  // const [user, setUser] = useState<User>(initialUser);
 
   // Formulaire pour les paramètres
   const settingsForm = useForm<CompanySettingsFormValues>({
@@ -661,7 +662,7 @@ const EnterpriseDashboard = () => {
                   <Building className="h-6 w-6 text-primary" />
                 </div>
                 <div>
-                  <h1 className="text-2xl font-bold">{authUser?.company || "Nom de l'entreprise"}</h1>
+                  <h1 className="text-2xl font-bold">{user?.companyName || "Nom de l'entreprise"}</h1>
                   <p className="text-sm text-muted-foreground">
                     Service RH & Paie • Pays: <span className="font-medium capitalize">{country}</span>
                   </p>
