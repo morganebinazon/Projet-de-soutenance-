@@ -118,9 +118,9 @@ const Index = () => {
 
               <div className="bg-white/80 dark:bg-slate-800/80 backdrop-blur-sm p-6 rounded-xl shadow-lg hover:shadow-xl transition-all hover:-translate-y-1 glow hover:glow-togo">
                 <Users className="h-8 w-8 text-benin-green mb-4" />
-                <h3 className="text-xl font-semibold mb-2">Gestion RH</h3>
+                <h3 className="text-xl font-semibold mb-2">Gestion des Bulletins</h3>
                 <p className="text-gray-600 dark:text-gray-300">
-                  Outils complets pour la gestion des ressources humaines
+                  Outils complets pour la gestion des bulletins de paie
                 </p>
               </div>
             </div>

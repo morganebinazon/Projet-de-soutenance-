@@ -76,21 +76,27 @@ const Login = () => {
         // 5. Stockage du token et mise à jour du store
         localStorage.setItem('authToken', response.data.token);
         setAuthData(response.data.user, response.data.token);
-        
+
         toast.success("Connexion réussie ! Bienvenue sur PayeAfrique.");
-     
+
         // 6. Redirection selon le rôle
-        const redirectPath = response.data.user.role === 'entreprise'
-          ? '/enterprise-dashboard'
-          : '/dashboard';
+        let redirectPath;
+        switch (response.data.user.role) {
+          case 'entreprise':
+            redirectPath = '/enterprise-dashboard';
+            break;
+          case 'employee':
+            redirectPath = '/employee-dashboard';
+            break;
+          default:
+            redirectPath = '/dashboard';
+        }
 
         navigate(redirectPath);
       } else {
         toast.error(response.message || "Erreur lors de la connexion");
       }
     } catch (error) {
-      // La gestion d'erreur est déjà faite par useApiMutation via useApiStore
-      // Vous pouvez ajouter un toast personnalisé si besoin
       console.error('Erreur de connexion:', error);
       toast.error("Une erreur est survenue lors de la connexion");
     }

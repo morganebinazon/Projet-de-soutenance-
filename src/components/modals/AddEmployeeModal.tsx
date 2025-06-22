@@ -7,19 +7,24 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Form, FormControl, FormField, FormItem, FormLabel } from '@/components/ui/form';
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '@/components/ui/form';
+import { toast } from '@/components/ui/use-toast';
 import { Employee, Department } from '@/types/payroll';
+import { useAuthStore } from '@/stores/authStore';
+import { useApiMutation } from '@/hooks/use-api';
 
 const employeeFormSchema = z.object({
-  name: z.string().min(2, 'Le nom doit contenir au moins 2 caractères'),
+  firstName: z.string().min(2, 'Le prénom doit contenir au moins 2 caractères'),
+  lastName: z.string().min(2, 'Le nom doit contenir au moins 2 caractères'),
+  email: z.string().email('Email invalide'),
   department: z.string().min(1, 'Veuillez sélectionner un département'),
   position: z.string().min(2, 'Le poste doit contenir au moins 2 caractères'),
-  grossSalary: z.number().min(0, 'Le salaire ne peut pas être négatif'),
+  salary: z.number().min(0, 'Le salaire ne peut pas être négatif'),
   benefits: z.object({
     transport: z.number().min(0).optional(),
     housing: z.number().min(0).optional(),
     performance: z.number().min(0).optional(),
-  }),
+  }).optional(),
 });
 
 type EmployeeFormValues = z.infer<typeof employeeFormSchema>;
@@ -27,23 +32,26 @@ type EmployeeFormValues = z.infer<typeof employeeFormSchema>;
 interface AddEmployeeModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onAddEmployee: (employee: Omit<Employee, 'id'>) => void;
   departments: Department[];
+  onEmployeeAdded: () => void;
 }
 
 const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({
   isOpen,
   onClose,
-  onAddEmployee,
   departments,
+  onEmployeeAdded,
 }) => {
+  const { user } = useAuthStore();
   const form = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeFormSchema),
     defaultValues: {
-      name: '',
+      firstName: '',
+      lastName: '',
+      email: '',
       department: '',
       position: '',
-      grossSalary: 0,
+      salary: 0,
       benefits: {
         transport: 0,
         housing: 0,
@@ -52,10 +60,36 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({
     },
   });
 
-  const onSubmit = (data: EmployeeFormValues) => {
-    onAddEmployee(data);
-    form.reset();
-    onClose();
+  // Utilisation de votre hook useApiMutation
+  const { mutateAsync: createEmployee, isPending: isCreating } = useApiMutation<
+    Employee,
+    Omit<EmployeeFormValues, 'id'> & { company_id: string }
+  >(`/employee/${user.id}/employees`, 'post');
+
+  const onSubmit = async (data: EmployeeFormValues) => {
+    try {
+      // Appel de l'API via useApiMutation
+      await createEmployee({
+        ...data,
+        company_id: user.id,
+      });
+
+      toast({
+        title: "Succès",
+        description: "L'employé a été créé avec succès",
+        variant: "default",
+      });
+
+      form.reset();
+      onEmployeeAdded();
+      onClose();
+    } catch (error) {
+      toast({
+        title: "Erreur",
+        description: "Une erreur est survenue lors de la création de l'employé",
+        variant: "destructive",
+      });
+    }
   };
 
   return (
@@ -66,15 +100,46 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({
         </DialogHeader>
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <FormField
+                control={form.control}
+                name="firstName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Prénom</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              
+              <FormField
+                control={form.control}
+                name="lastName"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Nom</FormLabel>
+                    <FormControl>
+                      <Input {...field} />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+            </div>
+            
             <FormField
               control={form.control}
-              name="name"
+              name="email"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Nom complet</FormLabel>
+                  <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input {...field} />
+                    <Input type="email" {...field} />
                   </FormControl>
+                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -86,9 +151,11 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({
                 <FormItem>
                   <FormLabel>Département</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Sélectionner un département" />
-                    </SelectTrigger>
+                    <FormControl>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Sélectionner un département" />
+                      </SelectTrigger>
+                    </FormControl>
                     <SelectContent>
                       {departments.map((dept) => (
                         <SelectItem key={dept.id} value={dept.name}>
@@ -97,6 +164,7 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({
                       ))}
                     </SelectContent>
                   </Select>
+                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -110,13 +178,14 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({
                   <FormControl>
                     <Input {...field} />
                   </FormControl>
+                  <FormMessage />
                 </FormItem>
               )}
             />
             
             <FormField
               control={form.control}
-              name="grossSalary"
+              name="salary"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Salaire brut</FormLabel>
@@ -127,6 +196,7 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({
                       onChange={e => field.onChange(Number(e.target.value))}
                     />
                   </FormControl>
+                  <FormMessage />
                 </FormItem>
               )}
             />
@@ -187,12 +257,12 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({
               </div>
             </div>
             
-            <div className="flex justify-end space-x-2">
-              <Button variant="outline" onClick={onClose}>
+            <div className="flex justify-end space-x-2 pt-4">
+              <Button variant="outline" type="button" onClick={onClose}>
                 Annuler
               </Button>
-              <Button type="submit">
-                Ajouter
+              <Button type="submit" disabled={isCreating}>
+                {isCreating ? "Création..." : "Créer"}
               </Button>
             </div>
           </form>
@@ -202,4 +272,4 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({
   );
 };
 
-export default AddEmployeeModal; 
+export default AddEmployeeModal;

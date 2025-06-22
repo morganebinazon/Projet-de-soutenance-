@@ -2,18 +2,39 @@
 import { create } from 'zustand';
 import { persist, createJSONStorage } from 'zustand/middleware';
 
-interface User {
+type UserRole = 'client' | 'entreprise' | 'employee';
+
+interface BaseUser {
   id: string;
   email: string;
-  name: string;
-  role: 'client' | 'entreprise';
+  role: UserRole;
   phone?: string;
   country?: string;
-  companyName?: string;
-  taxId?: string;
-  firstName?: string;
-  lastName?: string;
 }
+
+interface ClientUser extends BaseUser {
+  role: 'client';
+  firstName: string;
+  lastName: string;
+}
+
+interface EntrepriseUser extends BaseUser {
+  role: 'entreprise';
+  companyName: string;
+  taxId?: string;
+}
+
+interface EmployeeUser extends BaseUser {
+  role: 'employee';
+  firstName: string;
+  lastName: string;
+  position?: string;
+  department?: string;
+  companyId: string;
+  companyName?: string;
+}
+
+type User = ClientUser | EntrepriseUser | EmployeeUser;
 
 interface AuthState {
   user: User | null;
