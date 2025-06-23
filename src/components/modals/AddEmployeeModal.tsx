@@ -67,29 +67,30 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({
   >(`/employee/${user.id}/employees`, 'post');
 
   const onSubmit = async (data: EmployeeFormValues) => {
-    try {
-      // Appel de l'API via useApiMutation
-      await createEmployee({
-        ...data,
-        company_id: user.id,
-      });
+    // try {
+    // Appel de l'API via useApiMutation
+    await createEmployee({
+      ...data,
+      company_id: user.id,
+    });
 
-      toast({
-        title: "Succès",
-        description: "L'employé a été créé avec succès",
-        variant: "default",
-      });
+    toast({
+      title: "Succès",
+      description: "L'employé a été créé avec succès",
+      variant: "default",
+    });
+    onClose();
 
-      form.reset();
-      onEmployeeAdded();
-      onClose();
-    } catch (error) {
-      toast({
-        title: "Erreur",
-        description: "Une erreur est survenue lors de la création de l'employé",
-        variant: "destructive",
-      });
-    }
+    form.reset();
+    onEmployeeAdded();
+    onClose();
+    // } catch (error) {
+    //   toast({
+    //     title: "Erreur",
+    //     description: "Une erreur est survenue lors de la création de l'employé",
+    //     variant: "destructive",
+    //   });
+    // }
   };
 
   return (
@@ -114,7 +115,7 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({
                   </FormItem>
                 )}
               />
-              
+
               <FormField
                 control={form.control}
                 name="lastName"
@@ -129,7 +130,7 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({
                 )}
               />
             </div>
-            
+
             <FormField
               control={form.control}
               name="email"
@@ -143,7 +144,7 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({
                 </FormItem>
               )}
             />
-            
+
             <FormField
               control={form.control}
               name="department"
@@ -168,7 +169,7 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({
                 </FormItem>
               )}
             />
-            
+
             <FormField
               control={form.control}
               name="position"
@@ -182,7 +183,7 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({
                 </FormItem>
               )}
             />
-            
+
             <FormField
               control={form.control}
               name="salary"
@@ -190,9 +191,9 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({
                 <FormItem>
                   <FormLabel>Salaire brut</FormLabel>
                   <FormControl>
-                    <Input 
-                      type="number" 
-                      {...field} 
+                    <Input
+                      type="number"
+                      {...field}
                       onChange={e => field.onChange(Number(e.target.value))}
                     />
                   </FormControl>
@@ -200,7 +201,7 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({
                 </FormItem>
               )}
             />
-            
+
             <div className="space-y-2">
               <Label>Avantages</Label>
               <div className="grid grid-cols-3 gap-4">
@@ -211,16 +212,16 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({
                     <FormItem>
                       <FormLabel>Transport</FormLabel>
                       <FormControl>
-                        <Input 
-                          type="number" 
-                          {...field} 
+                        <Input
+                          type="number"
+                          {...field}
                           onChange={e => field.onChange(Number(e.target.value))}
                         />
                       </FormControl>
                     </FormItem>
                   )}
                 />
-                
+
                 <FormField
                   control={form.control}
                   name="benefits.housing"
@@ -228,16 +229,16 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({
                     <FormItem>
                       <FormLabel>Logement</FormLabel>
                       <FormControl>
-                        <Input 
-                          type="number" 
-                          {...field} 
+                        <Input
+                          type="number"
+                          {...field}
                           onChange={e => field.onChange(Number(e.target.value))}
                         />
                       </FormControl>
                     </FormItem>
                   )}
                 />
-                
+
                 <FormField
                   control={form.control}
                   name="benefits.performance"
@@ -245,9 +246,9 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({
                     <FormItem>
                       <FormLabel>Performance</FormLabel>
                       <FormControl>
-                        <Input 
-                          type="number" 
-                          {...field} 
+                        <Input
+                          type="number"
+                          {...field}
                           onChange={e => field.onChange(Number(e.target.value))}
                         />
                       </FormControl>
@@ -256,7 +257,7 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({
                 />
               </div>
             </div>
-            
+
             <div className="flex justify-end space-x-2 pt-4">
               <Button variant="outline" type="button" onClick={onClose}>
                 Annuler
