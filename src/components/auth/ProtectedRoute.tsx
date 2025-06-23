@@ -12,7 +12,7 @@ const ProtectedRoute = ({ children, allowedRoles }: ProtectedRouteProps) => {
 
   if (!isAuthenticated) {
     // Rediriger vers la page de connexion en sauvegardant l'URL actuelle
-    return <Navigate to="/login" state={{ from: location }} replace />;
+    // return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
   if (allowedRoles && user && !allowedRoles.includes(user.role)) {

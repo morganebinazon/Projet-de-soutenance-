@@ -66,32 +66,49 @@ const AddEmployeeModal: React.FC<AddEmployeeModalProps> = ({
     Omit<EmployeeFormValues, 'id'> & { company_id: string }
   >(`/employee/${user.id}/employees`, 'post');
 
-  const onSubmit = async (data: EmployeeFormValues) => {
-    // try {
-    // Appel de l'API via useApiMutation
-    await createEmployee({
+const onSubmit = async (data: EmployeeFormValues) => {
+  try {
+    // Appel de l'API
+    const response = await createEmployee({
       ...data,
       company_id: user.id,
     });
 
-    toast({
-      title: "Succès",
-      description: "L'employé a été créé avec succès",
-      variant: "default",
-    });
-    onClose();
+    if (response.data) {
+      toast({
+        title: "Succès", 
+        description: "Employé créé avec succès",
+        variant: "default",
+      });
 
-    form.reset();
-    onEmployeeAdded();
-    onClose();
-    // } catch (error) {
-    //   toast({
-    //     title: "Erreur",
-    //     description: "Une erreur est survenue lors de la création de l'employé",
-    //     variant: "destructive",
-    //   });
-    // }
-  };
+      // Transformez la réponse API en objet Employee
+      // const newEmployee: Employee = {
+      //   id: response.data.id.toString(),
+      //   name: `${response.data.firstName} ${response.data.lastName}`,
+      //   position: response.data.position,
+      //   department: response.data.department,
+      //   grossSalary: parseFloat(response.data.salary),
+      //   benefits: {
+      //     transport: data.benefits?.transport || 0,
+      //     housing: data.benefits?.housing || 0,
+      //     performance: data.benefits?.performance || 0,
+      //   },
+      // };
+
+      // Appelez le callback avec le nouvel employé
+      // onEmployeeAdded(newEmployee);
+      form.reset();
+      onClose();
+      window.location.reload();
+    }
+  } catch (error) {
+    toast({
+      title: "Erreur",
+      description: "Échec de la création",
+      variant: "destructive",
+    });
+  }
+};
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>

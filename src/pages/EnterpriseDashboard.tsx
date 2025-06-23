@@ -386,6 +386,9 @@ const EnterpriseDashboard = () => {
   const handleAddEmployee = async (newEmployee: Omit<Employee, "id">) => {
     try {
       setIsLoading(true);
+      setEmployees(prev => [...prev, newEmployee]);
+      // Recalculez vos stats si nécessaire
+      calculateStats();
 
       // Vérifier si le département existe
       const departmentExists = departments.some(dept => dept.name === newEmployee.department);
