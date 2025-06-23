@@ -355,7 +355,7 @@ const EnterpriseDashboard = () => {
   useEffect(() => {
     try {
       setIsLoading(true);
-      if (employees.length > 0) {
+      if (employees.length > 0 || departments.length > 0) {
         calculateStats();
       }
       setError(null);
@@ -365,7 +365,7 @@ const EnterpriseDashboard = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [employees, calculateStats]);
+  }, [employees, departments, calculateStats]);
 
   useEffect(() => {
     if (selectedEmployee && showEmployeeEdit) {
