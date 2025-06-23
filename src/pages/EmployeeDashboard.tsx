@@ -89,15 +89,15 @@ const EmployeeDashboard = () => {
   const { country } = useCountry();
   const navigate = useNavigate();
   const { user: currentUser } = useAuthStore();
-  const { 
-    employee, 
-    setEmployee, 
-    updateEmployee, 
-    addDocument, 
-    removeDocument, 
+  const {
+    employee,
+    setEmployee,
+    updateEmployee,
+    addDocument,
+    removeDocument,
     addNotification,
     markNotificationAsRead,
-    updateLeaves 
+    updateLeaves
   } = useEmployeeStore();
   const [salaryView, setSalaryView] = useState<string>("net");
   const currencySymbol = "FCFA";
@@ -116,7 +116,7 @@ const EmployeeDashboard = () => {
   });
   const [profileImage, setProfileImage] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
-  
+
   // Format currency for display
   const formatCurrency = (value: number | string) => {
     const numValue = typeof value === 'string' ? parseInt(value.replace(/[^\d]/g, ''), 10) : value;
@@ -167,7 +167,7 @@ const EmployeeDashboard = () => {
         reader.onloadend = () => {
           const base64String = reader.result as string;
           setProfileImage(base64String);
-          
+
           // Mettre à jour l'image dans le store
           if (employee) {
             updateEmployee({
@@ -453,25 +453,25 @@ const EmployeeDashboard = () => {
             <div className="relative group">
               <div className="w-20 h-20 rounded-full bg-gradient-to-br from-benin-green to-green-600 overflow-hidden flex items-center justify-center">
                 {profileImage ? (
-                  <img 
-                    src={profileImage} 
-                    alt="Photo de profil" 
+                  <img
+                    src={profileImage}
+                    alt="Photo de profil"
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                <UserIcon className="h-12 w-12 text-white" />
+                  <UserIcon className="h-12 w-12 text-white" />
                 )}
               </div>
               <div className="absolute bottom-0 right-0 h-5 w-5 bg-green-500 rounded-full border-2 border-white dark:border-gray-800"></div>
-              
+
               {/* Overlay pour le changement de photo */}
-              <div 
+              <div
                 className="absolute inset-0 rounded-full bg-black bg-opacity-50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center cursor-pointer"
                 onClick={() => fileInputRef.current?.click()}
               >
                 <Camera className="h-6 w-6 text-white" />
-            </div>
-            
+              </div>
+
               {/* Input caché pour le téléchargement de fichier */}
               <input
                 type="file"
@@ -481,31 +481,45 @@ const EmployeeDashboard = () => {
                 onChange={handleImageUpload}
               />
             </div>
-            
-            <h2 className="mt-4 text-xl font-bold">{employee?.name || 'Employé'}</h2>
-            <p className="text-sm text-muted-foreground">{employee?.position || 'N/A'}</p>
+
+            <h2 className="mt-4 text-xl font-bold">
+              {currentUser?.firstName} {currentUser?.lastName}
+            </h2>
+            <p className="text-sm text-muted-foreground">
+              {employee?.position || currentUser?.position || 'N/A'}
+            </p>
             <Badge className="mt-2 bg-benin-green" variant="secondary">
               {employee?.department || 'N/A'}
             </Badge>
-            
+
             <div className="w-full mt-4 pt-4 border-t">
-              <div className="text-sm text-muted-foreground">Membre depuis:</div>
-              <div className="font-medium">{employee?.hireDate ? formatDate(employee.hireDate) : 'N/A'}</div>
+              <div className="text-sm text-muted-foreground">Email:</div>
+              <div className="font-medium">{currentUser?.email || 'N/A'}</div>
             </div>
-            
-            <Button 
-              className="w-full mt-4 bg-benin-green hover:bg-benin-green/90" 
+
+            <div className="w-full mt-2">
+              <div className="text-sm text-muted-foreground">Téléphone:</div>
+              <div className="font-medium">{currentUser?.phone || 'N/A'}</div>
+            </div>
+
+            <div className="w-full mt-2">
+              <div className="text-sm text-muted-foreground">Entreprise:</div>
+              <div className="font-medium">{currentUser?.companyName || 'N/A'}</div>
+            </div>
+
+            <Button
+              className="w-full mt-4 bg-benin-green hover:bg-benin-green/90"
               onClick={() => navigate('/simulation/employee')}
             >
               <Calculator className="mr-2 h-4 w-4" />
               Simuler mon salaire
             </Button>
           </div>
-          
+
           {/* Main Content Area */}
           <div className="flex-1">
             <h1 className="text-3xl font-bold mb-6">Tableau de bord</h1>
-            
+
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {/* Salary KPI */}
               <Card>
@@ -522,7 +536,7 @@ const EmployeeDashboard = () => {
                   </div>
                 </CardContent>
               </Card>
-              
+
               {/* Leave KPI */}
               <Card>
                 <CardHeader className="pb-2">
@@ -539,7 +553,7 @@ const EmployeeDashboard = () => {
                   </div>
                 </CardContent>
               </Card>
-              
+
               {/* Annual Earnings KPI */}
               <Card>
                 <CardHeader className="pb-2">
@@ -559,7 +573,7 @@ const EmployeeDashboard = () => {
             </div>
           </div>
         </div>
-        
+
         {/* Salary Evolution Chart */}
         <Card className="mb-6">
           <CardHeader className="flex flex-row items-center justify-between">
@@ -603,7 +617,7 @@ const EmployeeDashboard = () => {
             </div>
           </CardContent>
         </Card>
-        
+
         {/* Documents and Leaves Section */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Recent Documents */}
@@ -645,7 +659,7 @@ const EmployeeDashboard = () => {
               </div>
             </CardContent>
           </Card>
-          
+
           {/* Leaves and Absences */}
           <Card>
             <CardHeader>
@@ -667,7 +681,7 @@ const EmployeeDashboard = () => {
                     <div className="text-2xl font-bold">{employee?.leaves.pending} jours</div>
                   </div>
                 </div>
-                
+
                 <div className="pt-4 border-t">
                   <div className="text-sm font-medium mb-2">Prochains congés planifiés</div>
                   <div className="flex items-center p-2 bg-green-50 dark:bg-green-900/20 rounded-md">
@@ -679,7 +693,7 @@ const EmployeeDashboard = () => {
                     <Badge variant="secondary">Approuvé</Badge>
                   </div>
                 </div>
-                
+
                 <Button className="w-full mt-2" onClick={() => setShowLeaveRequest(true)}>
                   <Calendar className="mr-2 h-4 w-4" />
                   Demander un congé
@@ -728,7 +742,7 @@ const EmployeeDashboard = () => {
                       </div>
                     </div>
                   </div>
-                  
+
                   <div>
                     <h3 className="text-lg font-medium mb-3">Performance 2025</h3>
                     <div className="space-y-2">
@@ -750,7 +764,7 @@ const EmployeeDashboard = () => {
                       </div>
                     </div>
                   </div>
-                  
+
                   <div>
                     <h3 className="text-lg font-medium mb-3">Projets en cours</h3>
                     <div className="space-y-2">
@@ -832,8 +846,8 @@ const EmployeeDashboard = () => {
                         <TableCell>{formatDate(document.date)}</TableCell>
                         <TableCell>
                           <div className="flex space-x-2">
-                            <Button 
-                              variant="ghost" 
+                            <Button
+                              variant="ghost"
                               size="sm"
                               onClick={() => {
                                 setSelectedDocument(document);
@@ -842,8 +856,8 @@ const EmployeeDashboard = () => {
                             >
                               <Eye className="h-4 w-4" />
                             </Button>
-                            <Button 
-                              variant="ghost" 
+                            <Button
+                              variant="ghost"
                               size="sm"
                               onClick={() => handleDownloadDocument(document)}
                             >
@@ -898,7 +912,7 @@ const EmployeeDashboard = () => {
                         <span className="font-bold">345 000 FCFA</span>
                       </div>
                     </div>
-                    
+
                     <div className="space-y-4">
                       <div className="flex justify-between p-3 bg-red-50 dark:bg-red-950/20 rounded-lg">
                         <span className="font-medium">Cotisations sociales</span>
@@ -915,7 +929,7 @@ const EmployeeDashboard = () => {
                     </div>
                   </div>
                 </div>
-                
+
                 {/* Graphical representation */}
                 <div className="mt-6">
                   <h3 className="text-lg font-medium mb-3">Répartition graphique</h3>
@@ -938,7 +952,7 @@ const EmployeeDashboard = () => {
                     </ResponsiveContainer>
                   </div>
                 </div>
-                
+
                 {/* Year-to-date summary */}
                 <div className="mt-6">
                   <h3 className="text-lg font-medium mb-3">Cumul depuis janvier 2025</h3>
@@ -1037,7 +1051,7 @@ const EmployeeDashboard = () => {
                     <div className="text-2xl font-bold">{employee?.leaves.monthly} jours</div>
                   </div>
                 </div>
-                
+
                 <div>
                   <h3 className="text-lg font-medium mb-3">Historique des congés</h3>
                   <Table>
@@ -1058,7 +1072,7 @@ const EmployeeDashboard = () => {
                           <TableCell>{leave.end}</TableCell>
                           <TableCell>{leave.days} jours</TableCell>
                           <TableCell>
-                            <Badge 
+                            <Badge
                               variant={leave.status === 'approved' ? 'default' : 'secondary'}
                               className={leave.status === 'approved' ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}
                             >
@@ -1070,7 +1084,7 @@ const EmployeeDashboard = () => {
                     </TableBody>
                   </Table>
                 </div>
-                
+
                 <div className="mt-6">
                   <h3 className="text-lg font-medium mb-3">Prochains jours fériés</h3>
                   <div className="space-y-2">
@@ -1122,23 +1136,23 @@ const EmployeeDashboard = () => {
                 {documents.length === 0 ? (
                   <div className="text-center py-8 text-gray-500">Aucun document disponible</div>
                 ) : (
-                <div className="space-y-4">
+                  <div className="space-y-4">
                     {documents.map((doc, idx) => (
                       <div key={doc.id || doc.name || idx} className="flex items-center justify-between p-4 bg-gray-50 dark:bg-gray-800 rounded-lg">
-                      <div className="flex items-center space-x-4">
-                        <FileSpreadsheet className="h-8 w-8 text-benin-green" />
-                        <div>
+                        <div className="flex items-center space-x-4">
+                          <FileSpreadsheet className="h-8 w-8 text-benin-green" />
+                          <div>
                             <h4 className="font-medium">{doc.name || 'Document'}</h4>
                             <p className="text-sm text-gray-500">{doc.date || ''}</p>
+                          </div>
                         </div>
-                      </div>
                         <Button variant="outline" size="sm" onClick={() => handleDownloadDocument(doc)}>
-                        <Download className="mr-2 h-4 w-4" />
-                        Télécharger
-                      </Button>
-                    </div>
-                  ))}
-                </div>
+                          <Download className="mr-2 h-4 w-4" />
+                          Télécharger
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </TabsContent>
               <TabsContent value="contracts">
@@ -1171,16 +1185,16 @@ const EmployeeDashboard = () => {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Date de début</Label>
-                <Input 
-                  type="date" 
+                <Input
+                  type="date"
                   value={leaveRequest.startDate}
                   onChange={(e) => setLeaveRequest(prev => ({ ...prev, startDate: e.target.value }))}
                 />
               </div>
               <div>
                 <Label>Date de fin</Label>
-                <Input 
-                  type="date" 
+                <Input
+                  type="date"
                   value={leaveRequest.endDate}
                   onChange={(e) => setLeaveRequest(prev => ({ ...prev, endDate: e.target.value }))}
                 />
@@ -1188,7 +1202,7 @@ const EmployeeDashboard = () => {
             </div>
             <div>
               <Label>Type de congés</Label>
-              <Select 
+              <Select
                 value={leaveRequest.type}
                 onValueChange={(value) => setLeaveRequest(prev => ({ ...prev, type: value }))}
               >
@@ -1204,8 +1218,8 @@ const EmployeeDashboard = () => {
             </div>
             <div>
               <Label>Commentaire</Label>
-              <Input 
-                placeholder="Raison de votre demande..." 
+              <Input
+                placeholder="Raison de votre demande..."
                 value={leaveRequest.comment}
                 onChange={(e) => setLeaveRequest(prev => ({ ...prev, comment: e.target.value }))}
               />
@@ -1232,18 +1246,18 @@ const EmployeeDashboard = () => {
             </DialogDescription>
           </DialogHeader>
           {selectedDocument ? (
-          <div className="grid gap-4 py-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label>Type de document</Label>
+            <div className="grid gap-4 py-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <Label>Type de document</Label>
                   <p className="font-medium">{selectedDocument.type || 'N/A'}</p>
-              </div>
-              <div>
-                <Label>Date d'émission</Label>
+                </div>
+                <div>
+                  <Label>Date d'émission</Label>
                   <p className="font-medium">{selectedDocument.date ? formatDate(selectedDocument.date) : 'N/A'}</p>
+                </div>
               </div>
             </div>
-          </div>
           ) : (
             <div className="text-center text-gray-500 py-8">Aucun document sélectionné</div>
           )}
@@ -1271,40 +1285,38 @@ const EmployeeDashboard = () => {
           <div className="space-y-4">
             {employee?.notifications && employee.notifications.length > 0 ? (
               employee.notifications.map((notification, idx) => (
-              <div 
+                <div
                   key={notification.id || idx}
-                className={`p-4 rounded-lg border ${
-                  notification.read ? 'bg-gray-50 dark:bg-gray-800' : 'bg-white dark:bg-gray-900'
-                }`}
-              >
-                <div className="flex items-start justify-between">
-                  <div className="flex items-start space-x-3">
-                    <div className={`mt-1 p-2 rounded-full ${
-                      notification.type === 'info' ? 'bg-blue-100 text-blue-600' :
-                      notification.type === 'warning' ? 'bg-yellow-100 text-yellow-600' :
-                      notification.type === 'success' ? 'bg-green-100 text-green-600' :
-                      'bg-red-100 text-red-600'
-                    }`}>
-                      <Bell className="h-4 w-4" />
-                    </div>
-                    <div>
+                  className={`p-4 rounded-lg border ${notification.read ? 'bg-gray-50 dark:bg-gray-800' : 'bg-white dark:bg-gray-900'
+                    }`}
+                >
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-start space-x-3">
+                      <div className={`mt-1 p-2 rounded-full ${notification.type === 'info' ? 'bg-blue-100 text-blue-600' :
+                        notification.type === 'warning' ? 'bg-yellow-100 text-yellow-600' :
+                          notification.type === 'success' ? 'bg-green-100 text-green-600' :
+                            'bg-red-100 text-red-600'
+                        }`}>
+                        <Bell className="h-4 w-4" />
+                      </div>
+                      <div>
                         <p className="font-medium">{notification.message || 'Notification'}</p>
-                      <p className="text-sm text-muted-foreground mt-1">
+                        <p className="text-sm text-muted-foreground mt-1">
                           {notification.date ? formatDate(notification.date) : 'N/A'}
-                      </p>
+                        </p>
+                      </div>
                     </div>
+                    {!notification.read && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => markNotificationAsRead(notification.id)}
+                      >
+                        Marquer comme lu
+                      </Button>
+                    )}
                   </div>
-                  {!notification.read && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => markNotificationAsRead(notification.id)}
-                    >
-                      Marquer comme lu
-                    </Button>
-                  )}
                 </div>
-              </div>
               ))
             ) : (
               <div className="text-center text-gray-500 py-8">Aucune notification</div>
