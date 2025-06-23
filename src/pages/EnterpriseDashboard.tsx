@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { useForm } from "react-hook-form";
@@ -34,6 +35,7 @@ import ReportModal from "@/components/modals/ReportModal";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useAuth } from "@/hooks/use-auth";
 import { useAuthStore } from "@/stores/authStore";
+import { useApiQuery } from "@/hooks/use-api";
 const COLORS = ['#0088FE', '#00C49F', '#FFBB28', '#FF8042'];
 
 const chartConfig = {
@@ -225,6 +227,7 @@ const EnterpriseDashboard = () => {
   const { country } = useCountry();
   const { toast } = useToast();
   const { user, isAuthenticated, updateUser } = useAuthStore();
+  const [employees, setEmployees] = useState<Employee[]>([]);
 
   const currencySymbol = "FCFA";
   const [selectedPeriod, setSelectedPeriod] = useState("month");
@@ -244,7 +247,7 @@ const EnterpriseDashboard = () => {
   const [error, setError] = useState<string | null>(null);
 
   const {
-    employees,
+    // employees,
     departments,
     totalGrossSalary,
     totalBenefits,
@@ -258,7 +261,72 @@ const EnterpriseDashboard = () => {
     updateEmployee,
     calculateStats
   } = usePayrollStore();
+  const {
+    data: apiResponse,
+    isLoading: isEmployeeLoading,
+    error: employeeError
+  } = useApiQuery<any>(
+    ['employees', user.id],
+    `/employee/${user.id}/employees`,
+    {
+      onSuccess: (data) => {
+        console.log('API Fetch Success:', data);
+        if (data?.success && data.data) {
+          // Transformez les données de l'API pour correspondre à votre interface Employee
+          const formattedEmployees = data.data.map((emp: any) => ({
+            id: emp.id.toString(),
+            name: `${emp.firstName} ${emp.lastName}`,
+            position: emp.position,
+            department: emp.department,
+            grossSalary: parseFloat(emp.salary),
+            benefits: {
+              transport: 0, // À adapter selon vos besoins
+              housing: 0,
+              performance: 0
+            },
+            // Ajoutez d'autres champs nécessaires
+          }));
+          setEmployees(formattedEmployees);
 
+          // // Créez les départements à partir des employés (ou appelez une API séparée si nécessaire)
+          // const uniqueDepartments = Array.from(new Set(formattedEmployees.map(e => e.department)))
+          //   .map((dept, index) => ({
+          //     id: index.toString(),
+          //     name: dept,
+          //     headcount: formattedEmployees.filter(e => e.department === dept).length,
+          //     budget: formattedEmployees
+          //       .filter(e => e.department === dept)
+          //       .reduce((sum, emp) => sum + emp.grossSalary, 0),
+          //     plannedPositions: 0 // À adapter
+          //   }));
+          // setDepartments(uniqueDepartments);
+        }
+      },
+      onError: (error) => {
+        console.error('API Fetch Error:', error);
+        toast.error("Erreur lors du chargement des employés");
+      }
+    }
+  );
+  useEffect(() => {
+    if (apiResponse && apiResponse.success) {
+      const employees = apiResponse.data.map((emp: any) => ({
+        id: emp.id.toString(),
+        name: `${emp.firstName} ${emp.lastName}`,
+        position: emp.position,
+        department: emp.department,
+        grossSalary: parseFloat(emp.salary),
+        benefits: {
+          transport: 0, // À adapter selon vos besoins
+          housing: 0,
+          performance: 0
+        },
+        // Ajoutez d'autres champs nécessaires
+      }));
+      setEmployees(employees);
+    }
+    // Do not return any JSX here; just return nothing or a cleanup function if needed
+  }, [apiResponse]);
   const form = useForm<EmployeeFormValues>({
     resolver: zodResolver(employeeFormSchema),
     defaultValues: {
@@ -287,7 +355,7 @@ const EnterpriseDashboard = () => {
   useEffect(() => {
     try {
       setIsLoading(true);
-      if (employees.length > 0 || departments.length > 0) {
+      if (employees.length > 0) {
         calculateStats();
       }
       setError(null);
@@ -297,7 +365,7 @@ const EnterpriseDashboard = () => {
     } finally {
       setIsLoading(false);
     }
-  }, [employees, departments, calculateStats]);
+  }, [employees, calculateStats]);
 
   useEffect(() => {
     if (selectedEmployee && showEmployeeEdit) {
